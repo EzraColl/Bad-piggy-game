@@ -6,8 +6,10 @@
   "description": "A 3D physics contraption-building game inspired by Bad Piggies, with a ray-traced photo mode.",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "build": "vite build && node tools/package.mjs",
+    "preview": "vite preview",
+    "test": "node tools/simulate.mjs",
+    "stress": "node tools/stress.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",

@@ -348,7 +348,7 @@ export class Contraption {
   // ---------------------------------------------------------------- per-step control
 
   step(dt, input, ctx) {
-    const world = this.world;
+    this.lastThrottle = input.throttle;
     // wheel drive
     const bodyGround = new Map();
     for (const w of this.wheels) {

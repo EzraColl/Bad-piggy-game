@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Pig Rig 3D</title>
+    <meta name="description" content="Build a contraption, get the pig to the finish. A 3D physics building game with a ray-traced photo mode." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@500;700;800;900&display=swap" />
+  </head>
+  <body>
+    <canvas id="gl" aria-label="3D game view"></canvas>
+
+    <div id="ui">
+      <!-- loading -->
+      <section id="loading" class="screen center">
+        <div class="logo small">PIG<span>RIG</span></div>
+        <p id="loading-text" class="loading-text">Warming up the engine…</p>
+        <div class="loading-bar"><i id="loading-bar"></i></div>
+      </section>
+
+      <!-- title -->
+      <section id="title" class="screen" hidden>
+        <div class="title-block">
+          <div class="logo">PIG<span>RIG</span><em>3D</em></div>
+          <p class="tagline">Build it. Drive it. Break it.</p>
+          <nav class="title-menu">
+            <button id="btn-play" class="btn big go">Play</button>
+            <button id="btn-sandbox" class="btn big">Sandbox</button>
+            <div class="row">
+              <button id="btn-howto" class="btn">How to play</button>
+              <button id="btn-settings" class="btn">Graphics &amp; sound</button>
+            </div>
+          </nav>
+        </div>
+        <p class="title-foot">Click anywhere to turn on sound · Best in Chrome, Edge or Firefox on a laptop</p>
+      </section>
+
+      <!-- level select -->
+      <section id="levels" class="screen" hidden>
+        <header class="levels-head">
+          <button id="levels-back" class="btn icon" aria-label="Back to title">←</button>
+          <h1>Pick a level</h1>
+          <span id="levels-total" class="chip"></span>
+        </header>
+        <div id="level-grid" class="level-grid"></div>
+      </section>
+
+      <!-- build HUD -->
+      <section id="build" class="hud" hidden>
+        <header class="topbar">
+          <div class="panel level-info">
+            <button id="build-back" class="btn icon" aria-label="Back to levels">←</button>
+            <div>
+              <h2 id="build-title">Level</h2>
+              <ul id="build-goals" class="goals"></ul>
+            </div>
+          </div>
+          <div class="panel tools">
+            <button id="btn-hint" class="btn" title="Load a build that works">Hint</button>
+            <button id="btn-undo" class="btn" title="Undo (Ctrl+Z)">Undo</button>
+            <button id="btn-clear" class="btn" title="Remove every part">Clear</button>
+            <button id="btn-build-settings" class="btn icon" aria-label="Settings" title="Settings">⚙</button>
+          </div>
+        </header>
+        <p id="build-tip" class="tip">Click the blue grid to place a part · Right-click removes · Drag to look around · <kbd>R</kbd> turns rockets and propellers</p>
+        <footer class="tray">
+          <div id="palette" class="palette"></div>
+          <div class="tray-actions">
+            <button id="btn-rotate" class="btn tool" title="Turn thrust direction (R)"><b>R</b><span id="rotate-label">Forward</span></button>
+            <button id="btn-eraser" class="btn tool" title="Eraser (E)"><b>E</b><span>Eraser</span></button>
+            <button id="btn-go" class="btn go huge" title="Start (Enter)">GO</button>
+          </div>
+        </footer>
+      </section>
+
+      <!-- play HUD -->
+      <section id="play" class="hud" hidden>
+        <header class="topbar">
+          <div class="panel level-info slim">
+            <h2 id="play-title">Level</h2>
+          </div>
+          <div class="panel timer-panel">
+            <div id="timer" class="timer">0.0</div>
+            <div id="play-goals" class="mini-goals"></div>
+          </div>
+          <div class="panel tools">
+            <div class="speed"><b id="speed">0</b><span>km/h</span></div>
+            <button id="btn-cam" class="btn" title="Camera (C)">Camera</button>
+            <button id="btn-photo" class="btn accent" title="Ray-traced photo (P)">Ray-trace photo</button>
+          </div>
+        </header>
+        <p id="drive-tip" class="tip">
+          <kbd>W</kbd><kbd>S</kbd> drive · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Shift</kbd> brake · drag to look around
+        </p>
+        <footer class="play-foot">
+          <div id="actions" class="actions"></div>
+          <div class="panel tools">
+            <button id="btn-restart" class="btn" title="Restart (R)"><kbd>R</kbd> Restart</button>
+            <button id="btn-tobuild" class="btn" title="Back to building (Esc)"><kbd>Esc</kbd> Build</button>
+          </div>
+        </footer>
+        <div id="touch" class="touch" hidden>
+          <div class="pad left">
+            <button data-key="left" aria-label="Steer left">◀</button>
+            <button data-key="right" aria-label="Steer right">▶</button>
+          </div>
+          <div class="pad right">
+            <button data-key="back" aria-label="Reverse">▼</button>
+            <button data-key="forward" aria-label="Drive">▲</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- photo mode -->
+      <section id="photo" class="hud" hidden>
+        <header class="topbar">
+          <div class="panel photo-panel">
+            <h2>Ray-traced photo</h2>
+            <p id="photo-status" class="photo-status">Preparing…</p>
+          </div>
+          <div class="panel tools">
+            <button id="btn-photo-save" class="btn">Save PNG</button>
+            <button id="btn-photo-exit" class="btn go">Back to game</button>
+          </div>
+        </header>
+      </section>
+
+      <!-- result -->
+      <div id="result" class="modal" hidden>
+        <div class="card result-card" role="dialog" aria-labelledby="result-title">
+          <h2 id="result-title">Level complete!</h2>
+          <div id="result-stars" class="result-stars"></div>
+          <p id="result-detail" class="result-detail"></p>
+          <div class="row">
+            <button id="res-build" class="btn">Edit build</button>
+            <button id="res-retry" class="btn">Try again</button>
+            <button id="res-next" class="btn go">Next level</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- settings -->
+      <div id="settings" class="modal" hidden>
+        <div class="card" role="dialog" aria-labelledby="settings-title">
+          <h2 id="settings-title">Graphics &amp; sound</h2>
+          <label class="field-label">Graphics quality</label>
+          <div id="quality" class="segmented" role="radiogroup" aria-label="Graphics quality"></div>
+          <p id="quality-note" class="note"></p>
+          <label class="field-label" for="volume">Sound volume</label>
+          <input id="volume" type="range" min="0" max="1" step="0.05" value="0.8" />
+          <label class="check"><input id="show-fps" type="checkbox" /> Show frames per second</label>
+          <div class="row end"><button id="settings-close" class="btn go">Done</button></div>
+        </div>
+      </div>
+
+      <!-- help -->
+      <div id="help" class="modal" hidden>
+        <div class="card help-card" role="dialog" aria-labelledby="help-title">
+          <h2 id="help-title">How to play</h2>
+          <p>Every level starts in the workshop. Bolt parts onto the blue grid to make a vehicle, press <b>GO</b>, and get the pig across the finish line. Each level has three stars: finish, grab the golden star, and beat the clock.</p>
+          <div class="help-cols">
+            <div>
+              <h3>Building</h3>
+              <dl>
+                <dt>Click</dt><dd>place the selected part</dd>
+                <dt>Right-click</dt><dd>remove a part</dd>
+                <dt>Drag / wheel</dt><dd>look around / zoom</dd>
+                <dt><kbd>1</kbd>–<kbd>9</kbd></dt><dd>pick a part</dd>
+                <dt><kbd>R</kbd></dt><dd>turn rockets and propellers</dd>
+                <dt><kbd>Ctrl</kbd>+<kbd>Z</kbd></dt><dd>undo</dd>
+                <dt><kbd>Enter</kbd></dt><dd>GO</dd>
+              </dl>
+            </div>
+            <div>
+              <h3>Driving</h3>
+              <dl>
+                <dt><kbd>W</kbd> <kbd>S</kbd></dt><dd>forward and reverse (needs an engine)</dd>
+                <dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>steer</dd>
+                <dt><kbd>Shift</kbd></dt><dd>brake</dd>
+                <dt><kbd>Space</kbd></dt><dd>fire soda rockets</dd>
+                <dt><kbd>F</kbd></dt><dd>propellers on or off</dd>
+                <dt><kbd>B</kbd></dt><dd>pop a balloon</dd>
+                <dt><kbd>T</kbd></dt><dd>detonate TNT</dd>
+                <dt><kbd>C</kbd></dt><dd>chase or side camera</dd>
+                <dt><kbd>P</kbd></dt><dd>ray-traced photo</dd>
+                <dt><kbd>R</kbd> / <kbd>Esc</kbd></dt><dd>restart / back to building</dd>
+              </dl>
+            </div>
+          </div>
+          <p class="note">Wheels only drive when they are bolted to the same chunk as an engine. Parts that take a big hit snap off.</p>
+          <div class="row end"><button id="help-close" class="btn go">Got it</button></div>
+        </div>
+      </div>
+
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+      <div id="fps" class="fps" hidden></div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -10,23 +10,23 @@
 export const THEMES = {
   meadow: {
     sun: { elevation: 38, azimuth: 205 },
-    turbidity: 3.2, rayleigh: 1.4, mie: 0.004, exposure: 0.95,
+    turbidity: 2.6, rayleigh: 2.0, mie: 0.004, exposure: 0.95,
     grass: [0.19, 0.36, 0.08], grass2: [0.32, 0.45, 0.12],
-    dirt: [0.36, 0.26, 0.16], rock: [0.42, 0.40, 0.37],
+    dirt: [0.46, 0.38, 0.28], rock: [0.38, 0.36, 0.33],
     snowLine: Infinity, fog: 0.0028, trees: 1, flowers: 1,
   },
   golden: {
     sun: { elevation: 14, azimuth: 235 },
     turbidity: 5.5, rayleigh: 2.2, mie: 0.006, exposure: 1.05,
     grass: [0.27, 0.34, 0.08], grass2: [0.45, 0.42, 0.14],
-    dirt: [0.40, 0.28, 0.17], rock: [0.47, 0.41, 0.35],
+    dirt: [0.48, 0.37, 0.26], rock: [0.47, 0.41, 0.35],
     snowLine: Infinity, fog: 0.0032, trees: 0.8, flowers: 0.6,
   },
   morning: {
     sun: { elevation: 22, azimuth: 150 },
     turbidity: 2.4, rayleigh: 1.1, mie: 0.003, exposure: 1.0,
     grass: [0.16, 0.33, 0.10], grass2: [0.26, 0.42, 0.14],
-    dirt: [0.33, 0.25, 0.17], rock: [0.45, 0.44, 0.42],
+    dirt: [0.44, 0.37, 0.29], rock: [0.45, 0.44, 0.42],
     snowLine: Infinity, fog: 0.0036, trees: 1.2, flowers: 1.2,
   },
   quarry: {

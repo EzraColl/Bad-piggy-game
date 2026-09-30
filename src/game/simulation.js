@@ -12,6 +12,66 @@ const STEP = 1 / 120;
 export const FINISH_HALF_WIDTH = 6.5;
 const _v = new Vector3();
 
+// Where the build grid's base sits: just above the highest ground under its footprint.
+export function computeSpawn(terrain, level, dims) {
+  const x = level.start;
+  const z = terrain.center(x);
+  let maxH = -Infinity;
+  for (let dx = -dims[0] / 2 - 0.6; dx <= dims[0] / 2 + 0.6; dx += 0.5) {
+    for (let dz = -dims[2] / 2 - 0.6; dz <= dims[2] / 2 + 0.6; dz += 0.5) {
+      maxH = Math.max(maxH, terrain.height(x + dx, z + dz));
+    }
+  }
+  return new Vector3(x, maxH + 0.42, z);
+}
+
+// Simple driver used by the title-screen demo and the level tests: aim at the road ahead.
+export function autopilotSteer(sim) {
+  const p = sim.car.pigPosition();
+  const r = sim.car.pig.body.rb.rotation();
+  const fx = 1 - 2 * (r.y * r.y + r.z * r.z);
+  const fz = 2 * (r.x * r.z - r.w * r.y);
+  const heading = Math.atan2(fz, fx);
+  const ax = p.x + 10;
+  const want = Math.atan2(sim.terrain.center(ax) - p.z, ax - p.x);
+  let err = want - heading;
+  while (err > Math.PI) err -= 2 * Math.PI;
+  while (err < -Math.PI) err += 2 * Math.PI;
+  return Math.max(-1, Math.min(1, err * 2.5));
+}
+
+// Replays a level's scripted key presses (see levels.js) with autopilot steering.
+export class ScriptPilot {
+  constructor(sim, script) {
+    this.sim = sim;
+    this.script = script ?? [{ t: 0, keys: ['forward'] }];
+    this.fired = new Set();
+    this.held = [];
+  }
+
+  update() {
+    const sim = this.sim;
+    const p = sim.car.pigPosition();
+    this.script.forEach((s, i) => {
+      if (this.fired.has(i)) return;
+      if ((s.t !== undefined && sim.time >= s.t) || (s.x !== undefined && p.x >= s.x)) {
+        this.fired.add(i);
+        this.held = s.keys ?? this.held;
+        if (this.held.includes('fan') !== sim.car.fansOn) sim.toggleFans();
+        for (const a of s.press ?? []) {
+          if (a === 'balloon') sim.popBalloon();
+          if (a === 'tnt') sim.detonate();
+        }
+      }
+    });
+    const h = this.held;
+    sim.input.throttle = h.includes('forward') ? 1 : h.includes('back') ? -1 : 0;
+    sim.input.steer = autopilotSteer(sim);
+    sim.input.rocket = h.includes('rocket');
+    sim.input.brake = h.includes('brake');
+  }
+}
+
 export class Simulation {
   constructor(RAPIER, level, blueprint, terrain = null) {
     this.R = RAPIER;
@@ -34,21 +94,8 @@ export class Simulation {
     this.starPos = level.star ? new Vector3(level.star.x, t.profile(level.star.x) + level.star.lift, t.center(level.star.x)) : null;
     this.balloonCeilingY = t.profile(level.start) + (level.balloonCeiling ?? 32);
 
-    this.spawn = this.computeSpawn(blueprint.dims);
+    this.spawn = computeSpawn(this.terrain, level, blueprint.dims);
     this.car = new Contraption(this.phys, blueprint, this.spawn, this.events);
-  }
-
-  computeSpawn(dims) {
-    const t = this.terrain;
-    const x = this.level.start;
-    const z = t.center(x);
-    let maxH = -Infinity;
-    for (let dx = -dims[0] / 2 - 0.6; dx <= dims[0] / 2 + 0.6; dx += 0.5) {
-      for (let dz = -dims[2] / 2 - 0.6; dz <= dims[2] / 2 + 0.6; dz += 0.5) {
-        maxH = Math.max(maxH, t.height(x + dx, z + dz));
-      }
-    }
-    return new Vector3(x, maxH + 0.42, z);
   }
 
   // ---------------------------------------------------------------- player commands
