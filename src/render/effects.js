@@ -238,8 +238,8 @@ export class Effects {
       _v.randomDirection().multiplyScalar(rnd(3, 11) * power);
       _v.y = Math.abs(_v.y) * 0.8 + 1;
       const heat = rnd(0.6, 1);
-      _c.setRGB(9 * heat, 3.6 * heat, 0.8 * heat);
-      this.fire.emit(pos, _v, _c, rnd(0.9, 1.9) * power, rnd(0.25, 0.6), { grow: 1.6, drag: 3.5, fadeIn: 0.02 });
+      _c.setRGB(4.2 * heat, 1.7 * heat, 0.4 * heat);
+      this.fire.emit(pos, _v, _c, rnd(0.9, 1.9) * power, rnd(0.25, 0.6), { grow: 1.6, drag: 3.5, fadeIn: 0.02, alpha: 0.8 });
     }
     for (let i = 0; i < 70 * power; i++) {
       _v.randomDirection().multiplyScalar(rnd(1.5, 7) * power);
@@ -251,13 +251,13 @@ export class Effects {
     for (let i = 0; i < 60 * power; i++) {
       _v.randomDirection().multiplyScalar(rnd(8, 22));
       _v.y = Math.abs(_v.y) * 0.9 + 2;
-      _c.setRGB(8, 4.5, 1.4);
-      this.fire.emit(pos, _v, _c, rnd(0.06, 0.12), rnd(0.6, 1.4), { grow: 0.5, drag: 0.6, gravity: 9.8, fadeIn: 0.01 });
+      _c.setRGB(6, 3.2, 1);
+      this.fire.emit(pos, _v, _c, rnd(0.05, 0.1), rnd(0.6, 1.4), { grow: 0.5, drag: 0.6, gravity: 9.8, fadeIn: 0.01 });
     }
     const light = this.flashes[this.flashIndex++ % this.flashes.length];
     light.position.copy(pos);
-    light.intensity = 900 * power;
-    light.userData.decay = 7;
+    light.intensity = 70 * power;
+    light.userData.decay = 11;
     this.shake = Math.min(1.4, this.shake + 0.9 * power);
     this.splinters(pos, 10 * power);
   }

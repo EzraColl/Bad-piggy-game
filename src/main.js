@@ -30,7 +30,12 @@ function guessQuality() {
 async function boot(hotData = {}) {
   const store = new Store();
   store.merge(hotData.progress);
-  window.claude?.hot?.snapshot?.(() => ({ progress: store.data }));
+  try {
+    // keeps stars and builds when an embedding host hot-reloads the page
+    window.claude?.hot?.snapshot?.(() => ({ progress: store.data }));
+  } catch {
+    /* not hosted there */
+  }
 
   const canvas = document.getElementById('gl');
   if (!document.createElement('canvas').getContext('webgl2')) {

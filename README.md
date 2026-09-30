@@ -43,8 +43,8 @@ npm test         # drives every level's hint build to the finish without a brows
   filmic tone mapping.
 - Live reflections: a cube camera follows your vehicle so chrome, paint and glass reflect the
   world around them.
-- Procedural everything: textures, 50,000+ blades of wind-animated grass, leafy trees that cast
-  dappled shadows, rocks, dust, smoke and fire particles.
+- Procedural everything: textures, tens of thousands of wind-animated grass tufts, leafy trees
+  that cast dappled shadows, rocks, dust, smoke and fire particles.
 - Quality presets (Low, Medium, High, Ultra). The game picks one from your graphics chip and
   steps down once if the first drive stutters. Change it any time in **Graphics & sound**.
 

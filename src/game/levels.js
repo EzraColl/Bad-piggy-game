@@ -16,8 +16,8 @@ export const THEMES = {
     snowLine: Infinity, fog: 0.0028, trees: 1, flowers: 1,
   },
   golden: {
-    sun: { elevation: 14, azimuth: 235 },
-    turbidity: 5.5, rayleigh: 2.2, mie: 0.006, exposure: 1.05,
+    sun: { elevation: 15, azimuth: 202 },
+    turbidity: 5.5, rayleigh: 2.2, mie: 0.006, exposure: 1.15,
     grass: [0.27, 0.34, 0.08], grass2: [0.45, 0.42, 0.14],
     dirt: [0.48, 0.37, 0.26], rock: [0.47, 0.41, 0.35],
     snowLine: Infinity, fog: 0.0032, trees: 0.8, flowers: 0.6,
@@ -44,8 +44,8 @@ export const THEMES = {
     snowLine: 22, fog: 0.0022, trees: 1.4, flowers: 0.4, pines: true,
   },
   canyon: {
-    sun: { elevation: 9, azimuth: 250 },
-    turbidity: 7, rayleigh: 2.6, mie: 0.008, exposure: 1.1,
+    sun: { elevation: 14, azimuth: 196 },
+    turbidity: 7, rayleigh: 2.6, mie: 0.008, exposure: 1.25,
     grass: [0.36, 0.30, 0.12], grass2: [0.48, 0.36, 0.16],
     dirt: [0.58, 0.32, 0.18], rock: [0.64, 0.33, 0.20],
     snowLine: Infinity, fog: 0.0030, trees: 0.35, flowers: 0,

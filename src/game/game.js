@@ -72,6 +72,7 @@ export class Game {
     await tick();
     const effects = new Effects(this.scene, terrain);
     const spawn = computeSpawn(terrain, level, level.grid);
+    env.follow(spawn);
     const builder = new Builder({
       scene: this.scene,
       camera: this.camera,
@@ -146,6 +147,7 @@ export class Game {
     w.builder.enable(true);
     this.rig.enabled = false;
     this.state = 'build';
+    document.activeElement?.blur?.();
     ui.setupBuild(this);
     ui.show('build');
     this.sound.silence();
@@ -190,6 +192,7 @@ export class Game {
     this._beginSim(cells);
     this.rig.enabled = true;
     this.state = 'play';
+    document.activeElement?.blur?.(); // so Space fires rockets instead of re-clicking a button
     ui.setupPlay(this);
     ui.show('play');
     this.sound.unlock();

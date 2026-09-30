@@ -61,7 +61,7 @@ export class WorldEnvironment {
     const sky = this.measureSky();
     const lum = (v) => 0.2126 * v.x + 0.7152 * v.y + 0.0722 * v.z;
     const skyIrradiance = Math.PI * lum(sky.upper);
-    const sunIrradiance = this.sun.intensity * Math.max(0.2, this.sunDir.y);
+    const sunIrradiance = this.sun.intensity * Math.max(0.4, this.sunDir.y); // low suns still leave a bright sky
     this.scene.environmentIntensity = THREE.MathUtils.clamp((sunIrradiance * 0.42) / Math.max(1e-4, skyIrradiance), 0.05, 1.5);
     this.skyInfo = { sky, skyIrradiance, sunIrradiance, envIntensity: this.scene.environmentIntensity };
     this.fogColor = new THREE.Color(sky.horizon.x, sky.horizon.y, sky.horizon.z).multiplyScalar(this.scene.environmentIntensity * 1.1);

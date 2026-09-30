@@ -294,8 +294,9 @@ export function updatePlay(g) {
   const sim = g.sim;
   const lvl = g.world.level;
   const t = $('timer');
-  t.textContent = sim.time.toFixed(1);
-  t.classList.toggle('late', !lvl.sandbox && lvl.timeLimit > 0 && sim.time > lvl.timeLimit);
+  const shown = sim.finishTime ?? sim.time; // the clock stops at the finish line
+  t.textContent = shown.toFixed(1);
+  t.classList.toggle('late', !lvl.sandbox && lvl.timeLimit > 0 && shown > lvl.timeLimit);
   $('speed').textContent = Math.round(sim.car.speed() * 3.6);
   if (!lvl.sandbox) {
     const st = sim.stars();

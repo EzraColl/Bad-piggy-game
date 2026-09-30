@@ -255,6 +255,7 @@ export class Simulation {
       const dz = pig.z - this.goal.z;
       if (pig.x >= this.goal.x && Math.abs(dz) < FINISH_HALF_WIDTH && pig.y < this.goal.y + 7 && pig.y > this.goal.y - 2.5) {
         this.state = 'won';
+        this.finishTime = this.time;
         this.events.push({ type: 'win', time: this.time });
         return;
       }
@@ -273,7 +274,7 @@ export class Simulation {
     return {
       finish: won,
       star: this.starCollected,
-      time: won && lvl.timeLimit > 0 && this.time <= lvl.timeLimit,
+      time: won && lvl.timeLimit > 0 && this.finishTime <= lvl.timeLimit,
     };
   }
 

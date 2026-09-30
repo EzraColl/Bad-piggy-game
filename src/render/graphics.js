@@ -173,9 +173,14 @@ export class Graphics {
     if (this.probeCamera && this.probePoint && (this.probeNeedsFill || this.frame % q.probe === 0)) {
       this.probeNeedsFill = false;
       this.probeCamera.position.copy(this.probePoint);
-      for (const o of this.hideForProbe) o.visible = false;
+      // the car should not reflect itself, and fireballs in a 128px probe just make chrome glow
+      const hidden = [...this.hideForProbe];
+      this.scene.traverseVisible((o) => {
+        if (o.isPoints || o.isSprite) hidden.push(o);
+      });
+      for (const o of hidden) o.visible = false;
       this.probeCamera.update(this.renderer, this.scene);
-      for (const o of this.hideForProbe) o.visible = true;
+      for (const o of hidden) o.visible = true;
     }
     this.composer.render();
   }
