@@ -34,9 +34,17 @@ html, body {
   -webkit-font-smoothing: antialiased;
   user-select: none;
   -webkit-user-select: none;
+  /* touchscreens: no page zoom, no double-tap zoom, no long-press callouts or grey tap flashes */
+  touch-action: pan-x pan-y;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 [hidden] { display: none !important; }
+
+/* .touch on <html> = the player is using a touchscreen; swap keyboard hints for touch ones */
+.touch .no-touch, html:not(.touch) .touch-only { display: none !important; }
+.touch kbd, .touch .part-btn .key { display: none; }
 
 #gl {
   position: fixed;
@@ -55,7 +63,7 @@ html, body {
 }
 
 .screen, .hud, .modal, .toast { pointer-events: none; }
-.screen > *, .panel, .tray, .btn, .card, .tip, .actions, .touch button, .level-grid, .levels-head { pointer-events: auto; }
+.screen > *, .panel, .tray, .btn, .card, .tip, .actions, #touch button, .level-grid, .levels-head { pointer-events: auto; }
 
 h1, h2, h3 {
   font-family: var(--font-display);
@@ -94,18 +102,19 @@ kbd {
   transition: transform 0.08s ease, background 0.15s ease, border-color 0.15s ease;
   white-space: nowrap;
 }
-.btn:hover { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 236, 190, 0.35); }
+@media (hover: hover) { .btn:hover { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 236, 190, 0.35); } }
 .btn:active { transform: translateY(1px) scale(0.98); }
 .btn:focus-visible { outline: 3px solid var(--hazard); outline-offset: 2px; }
 .btn[disabled] { opacity: 0.45; cursor: not-allowed; }
 .btn.icon { width: 2.4em; height: 2.4em; padding: 0; display: grid; place-items: center; font-size: 1.1rem; }
+.btn svg { display: block; }
 .btn.go {
   background: linear-gradient(180deg, #92d65c, var(--pig) 55%, var(--pig-deep));
   border-color: rgba(0, 0, 0, 0.25);
   color: #10200a;
   box-shadow: 0 3px 0 #2f5a14, 0 8px 18px rgba(0, 0, 0, 0.3);
 }
-.btn.go:hover { filter: brightness(1.07); }
+@media (hover: hover) { .btn.go:hover { filter: brightness(1.07); } }
 .btn.accent { background: linear-gradient(180deg, #ffd66a, var(--hazard)); color: var(--hazard-ink); border-color: rgba(0, 0, 0, 0.2); }
 .btn.big { font-family: var(--font-display); font-weight: 400; font-size: 1.6rem; padding: 0.35em 1.2em; letter-spacing: 0.02em; }
 .btn.huge { font-family: var(--font-display); font-weight: 400; font-size: 2rem; padding: 0.2em 0.9em; }
@@ -236,7 +245,7 @@ kbd {
   -webkit-mask-image: linear-gradient(180deg, #000 30%, transparent);
 }
 .level-card > * { position: relative; }
-.level-card:hover { transform: translateY(-3px); border-color: rgba(255, 236, 190, 0.4); }
+@media (hover: hover) { .level-card:hover { transform: translateY(-3px); border-color: rgba(255, 236, 190, 0.4); } }
 .level-card:focus-visible { outline: 3px solid var(--hazard); outline-offset: 3px; }
 .level-card .num { font-family: var(--font-display); font-size: 1rem; color: var(--hazard-ink); background: var(--hazard); width: 2em; height: 2em; border-radius: 50%; display: grid; place-items: center; box-shadow: 0 3px 0 #8a5c07; }
 .level-card h3 { font-size: 1.45rem; margin-top: 8px; }
@@ -326,14 +335,14 @@ kbd {
 .part-btn .name { font-weight: 800; font-size: 0.78rem; line-height: 1.1; text-align: center; }
 .part-btn .count { position: absolute; top: 4px; right: 5px; font-weight: 900; font-size: 0.8rem; font-variant-numeric: tabular-nums; background: rgba(0, 0, 0, 0.55); border-radius: 99px; padding: 0 6px; }
 .part-btn .key { position: absolute; top: 4px; left: 5px; font-weight: 900; font-size: 0.72rem; color: var(--ink-dim); }
-.part-btn:hover { background: rgba(255, 255, 255, 0.12); }
+@media (hover: hover) { .part-btn:hover { background: rgba(255, 255, 255, 0.12); } }
 .part-btn.sel { border-color: var(--hazard); background: rgba(245, 184, 46, 0.16); }
 .part-btn.empty { opacity: 0.4; }
 .part-btn:focus-visible { outline: 3px solid var(--hazard); outline-offset: 1px; }
 .tray-actions { display: flex; gap: 8px; align-items: stretch; padding-top: 4px; }
 .btn.tool { display: grid; place-items: center; gap: 2px; width: 80px; padding: 6px; }
-.btn.tool b { font-size: 1.05rem; }
-.btn.tool span { font-size: 0.74rem; color: var(--ink-dim); }
+.btn.tool b { font-size: 1.05rem; display: grid; place-items: center; min-height: 24px; }
+.btn.tool span { font-size: 0.74rem; color: var(--ink-dim); white-space: normal; text-align: center; line-height: 1.1; }
 .btn.tool.on span { color: var(--hazard-ink); }
 
 .timer-panel { text-align: center; min-width: 150px; padding: 6px 16px 8px; }
@@ -378,10 +387,13 @@ kbd {
 .action small { grid-column: 2; color: var(--ink-dim); font-weight: 700; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
 .action kbd { grid-row: span 2; }
 .action.on { background: rgba(245, 184, 46, 0.25); border-color: var(--hazard); }
+.action { touch-action: none; }
+.touch .action { grid-template-columns: 1fr; min-width: 0; min-height: 56px; padding: 10px 16px; }
+.touch .action > *, .touch .action .fuel { grid-column: 1; }
 .action .fuel { grid-column: 2; height: 5px; border-radius: 9px; background: rgba(255, 255, 255, 0.14); overflow: hidden; margin-top: 3px; }
 .action .fuel i { display: block; height: 100%; background: linear-gradient(90deg, #ff7a2a, #ffd05a); }
 
-.touch { position: absolute; inset: auto 0 calc(84px + env(safe-area-inset-bottom, 0px)) 0; display: flex; justify-content: space-between; padding: 0 var(--edge); pointer-events: none; }
+#touch { position: absolute; inset: auto 0 calc(12px + env(safe-area-inset-bottom, 0px)) 0; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 var(--edge); pointer-events: none; }
 .pad { display: flex; gap: 12px; }
 .pad button {
   pointer-events: auto;
@@ -395,8 +407,21 @@ kbd {
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   touch-action: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
 }
 .pad button.held { background: rgba(245, 184, 46, 0.4); }
+.pad button.brake { font-family: var(--font-body); font-weight: 900; font-size: 0.82rem; letter-spacing: 0.04em; text-transform: uppercase; border-color: rgba(229, 83, 61, 0.6); }
+.pad button.brake.held { background: rgba(229, 83, 61, 0.55); }
+@media (min-width: 900px) and (min-height: 600px) {
+  .pad { gap: 16px; }
+  .pad button { width: 84px; height: 84px; }
+}
+/* on a touchscreen the pads take the bottom corners, under the thumbs; the action buttons and
+   Restart / Build sit just above them */
+.touch .play-foot { bottom: calc(108px + env(safe-area-inset-bottom, 0px)); }
+.touch #drive-tip { bottom: calc(190px + env(safe-area-inset-bottom, 0px)); }
 
 .photo-panel h2 { font-size: 1.4rem; }
 .photo-status { margin: 4px 0 0; color: var(--ink-dim); font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -475,7 +500,7 @@ input[type='range'] { width: 100%; accent-color: var(--hazard); }
   .tip { display: none; }
   .part-btn { width: 76px; }
   .part-btn img { width: 46px; height: 46px; }
-  .btn.tool { width: 62px; }
+  .btn.tool { width: 76px; }
   .btn.huge { font-size: 1.5rem; }
   .timer { font-size: 1.7rem; }
   .level-info h2 { font-size: 1.2rem; }

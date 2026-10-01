@@ -271,12 +271,27 @@ export class Game {
   async savePhoto() {
     const url = this.photo.snapshot();
     const filename = `pig-rig-${this.world.level.id}-${Date.now()}.png`;
-    if (this.downloads) {
+    const png = () => {
       const bin = atob(url.split(',')[1]);
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new Blob([bytes], { type: 'image/png' });
+    };
+    // on an iPad the share sheet has "Save Image", which puts the photo in the Photos app
+    if (ui.isTouch() && !this.downloads) {
+      const file = new File([png()], filename, { type: 'image/png' });
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: 'Pig Rig 3D photo' });
+        } catch (err) {
+          if (err?.name !== 'AbortError') ui.toast('Could not share the photo');
+        }
+        return;
+      }
+    }
+    if (this.downloads) {
       try {
-        const res = await this.downloads.save({ filename, data: new Blob([bytes], { type: 'image/png' }) });
+        const res = await this.downloads.save({ filename, data: png() });
         if (res?.status === 'saved') ui.toast('Photo saved');
       } catch (err) {
         if (err?.code !== 'declined') ui.toast('Saving is not available here');
@@ -308,7 +323,10 @@ export class Game {
       if (k) this.keys.delete(k);
     });
     window.addEventListener('blur', () => this.keys.clear());
-    window.addEventListener('pointerdown', () => this.sound.unlock(), { once: false });
+    // Safari on iPad only lets sound start when a finger lifts, so listen for that too
+    for (const type of ['pointerdown', 'pointerup', 'touchend', 'click']) {
+      window.addEventListener(type, () => this.sound.unlock(), { passive: true });
+    }
   }
 
   _keyAction(e) {

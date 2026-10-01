@@ -1,4 +1,4 @@
-// Chase camera for driving (drag to orbit, wheel to zoom) with a classic side-on mode.
+// Chase camera for driving (drag to orbit, wheel or pinch to zoom) with a classic side-on mode.
 
 import * as THREE from 'three';
 
@@ -15,29 +15,45 @@ export class CameraRig {
     this.yawOffset = 0;
     this.pitch = 0.32;
     this.distance = 9;
-    this.dragging = false;
     this.enabled = false;
     this.lastDrag = 0;
     this.fovBase = 55;
     this._pos = new THREE.Vector3();
     this.initialised = false;
+    this._pointers = new Map(); // one pointer drags the view round, two pinch to zoom
+    this._spread = 0;
 
+    const spread = () => {
+      const [a, b] = [...this._pointers.values()];
+      return b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+    };
     dom.addEventListener('pointerdown', (e) => {
       if (!this.enabled) return;
-      this.dragging = true;
-      this.px = e.clientX;
-      this.py = e.clientY;
+      this._pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      this._spread = spread();
     });
-    window.addEventListener('pointerup', () => (this.dragging = false));
+    const up = (e) => {
+      this._pointers.delete(e.pointerId);
+      this._spread = spread();
+    };
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
     window.addEventListener('pointermove', (e) => {
-      if (!this.enabled || !this.dragging) return;
-      const dx = e.clientX - this.px;
-      const dy = e.clientY - this.py;
-      this.px = e.clientX;
-      this.py = e.clientY;
+      const p = this._pointers.get(e.pointerId);
+      if (!this.enabled || !p) return;
+      const dx = e.clientX - p.x;
+      const dy = e.clientY - p.y;
+      p.x = e.clientX;
+      p.y = e.clientY;
+      this.lastDrag = performance.now();
+      if (this._pointers.size > 1) {
+        const d = spread();
+        if (this._spread > 0 && d > 0) this.distance = THREE.MathUtils.clamp((this.distance * this._spread) / d, 4, 40);
+        this._spread = d;
+        return;
+      }
       this.yawOffset -= dx * 0.006;
       this.pitch = THREE.MathUtils.clamp(this.pitch + dy * 0.004, -0.05, 1.3);
-      this.lastDrag = performance.now();
     });
     dom.addEventListener(
       'wheel',
@@ -83,7 +99,7 @@ export class CameraRig {
       while (d > Math.PI) d -= Math.PI * 2;
       while (d < -Math.PI) d += Math.PI * 2;
       this.heading += d * (1 - Math.exp(-dt * (speed > 2 ? 2.2 : 0.8)));
-      if (!this.dragging && performance.now() - this.lastDrag > 2500) {
+      if (this._pointers.size === 0 && performance.now() - this.lastDrag > 2500) {
         this.yawOffset *= Math.exp(-dt * 0.8);
       }
       const yaw = this.heading + Math.PI + this.yawOffset;

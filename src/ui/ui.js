@@ -11,6 +11,18 @@ let game = null;
 let toastTimer = 0;
 let showFps = false;
 let hintArmed = 0;
+let touch = false; // touchscreen layout: on-screen driving pad, tap wording, no keyboard hints
+let current = 'loading';
+
+export const isTouch = () => touch;
+const tap = () => (touch ? 'Tap' : 'Click');
+
+// Follows whatever the player last used, so an iPad with a trackpad gets the laptop layout.
+function setTouch(on) {
+  touch = on;
+  document.documentElement.classList.toggle('touch', on);
+  $('touch').hidden = current !== 'play' || !on;
+}
 
 const QUALITY_NOTES = {
   low: 'For older laptops. No grass shadows or bloom, lower resolution.',
@@ -40,18 +52,18 @@ export function bind(g) {
   $('help-close').onclick = () => closeModals();
   $('settings-close').onclick = () => closeModals();
   $('btn-go').onclick = () => game.startRun();
-  $('btn-clear').onclick = () => { game.world.builder.clear(); toast('Grid cleared. Ctrl+Z brings it back.'); };
+  $('btn-clear').onclick = () => { game.world.builder.clear(); toast(`Grid cleared. ${touch ? 'Undo' : 'Ctrl+Z'} brings it back.`); };
   $('btn-undo').onclick = () => { if (!game.world.builder.undo()) toast('Nothing to undo'); };
   $('btn-hint').onclick = () => {
     const now = performance.now();
     if (now - hintArmed > 6000) {
       hintArmed = now;
-      toast('Click Hint again to swap your build for one that works');
+      toast(`${tap()} Hint again to swap your build for one that works`);
       return;
     }
     hintArmed = 0;
     game.world.builder.load(game.world.level.solution);
-    toast('Hint loaded. Press GO and hold W.');
+    toast(`Hint loaded. Press GO and hold ${touch ? '▲' : 'W'}.`);
   };
   $('btn-rotate').onclick = () => toast('Thrust: ' + game.world.builder.rotate());
   $('btn-eraser').onclick = () => game.world.builder.setEraser(!game.world.builder.eraser);
@@ -113,9 +125,14 @@ export function bind(g) {
   $('fps').hidden = !showFps;
   syncSettings();
 
-  // touch driving pad
-  const coarse = window.matchMedia?.('(pointer: coarse)').matches;
-  $('touch').hidden = !coarse;
+  // touchscreens: on-screen driving pad, and no page zooming when a pinch lands on the HUD
+  setTouch(!!window.matchMedia?.('(pointer: coarse)').matches);
+  window.addEventListener('pointerdown', (e) => {
+    if ((e.pointerType !== 'mouse') !== touch) setTouch(e.pointerType !== 'mouse');
+  }, true);
+  for (const type of ['gesturestart', 'gesturechange']) {
+    document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+  }
   for (const btn of $('touch').querySelectorAll('button')) {
     const key = btn.dataset.key;
     const on = (e) => { e.preventDefault(); game.keys.add(key); btn.classList.add('held'); };
@@ -124,13 +141,14 @@ export function bind(g) {
     btn.addEventListener('pointerup', off);
     btn.addEventListener('pointerleave', off);
     btn.addEventListener('pointercancel', off);
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 }
 
 export function toggleInside(g) {
   const b = g.world.builder;
   b.setInsideMode(!b.insideMode);
-  toast(b.insideMode ? 'Inside boxes on: click a frame to put the part inside it' : 'Inside boxes off');
+  toast(b.insideMode ? `Inside boxes on: ${tap().toLowerCase()} a frame to put the part inside it` : 'Inside boxes off');
 }
 
 export function toggleMirror(g) {
@@ -152,9 +170,9 @@ function syncSettings() {
 }
 
 export function show(name) {
+  current = name;
   for (const s of SCREENS) $(s).hidden = s !== name;
-  if (name !== 'play') $('touch').hidden = true;
-  else $('touch').hidden = !window.matchMedia?.('(pointer: coarse)').matches;
+  $('touch').hidden = name !== 'play' || !touch;
 }
 
 export function loading(p, text) {
@@ -301,7 +319,8 @@ export function setupPlay(g) {
     b.innerHTML = `<kbd>${a.key}</kbd><span>${a.label}</span><small></small>${a.type === 'rocket' ? '<span class="fuel"><i></i></span>' : ''}`;
     if (a.type === 'rocket') {
       b.onpointerdown = (e) => { e.preventDefault(); g.keys.add('rocket'); };
-      b.onpointerup = b.onpointerleave = () => g.keys.delete('rocket');
+      b.onpointerup = b.onpointerleave = b.onpointercancel = () => g.keys.delete('rocket');
+      b.oncontextmenu = (e) => e.preventDefault(); // a long press must not pop up a menu
     } else {
       b.onclick = () => {
         if (a.type === 'fan') g.sim.toggleFans();
@@ -314,11 +333,18 @@ export function setupPlay(g) {
   $('play-goals').innerHTML = lvl.sandbox ? '' : starsHtml([false, false, false]);
   $('drive-tip').classList.remove('fade');
   const has = (t) => g.sim.car.parts.some((p) => p.type === t);
-  $('drive-tip').innerHTML = has('fan')
-    ? '<kbd>F</kbd> propellers on · <kbd>W</kbd><kbd>S</kbd> more or less power (climb or sink) · <kbd>A</kbd><kbd>D</kbd> steer in the air'
+  const tips = has('fan')
+    ? [
+        '<kbd>F</kbd> propellers on · <kbd>W</kbd><kbd>S</kbd> more or less power (climb or sink) · <kbd>A</kbd><kbd>D</kbd> steer in the air',
+        'Tap Propellers to start them · ▲ ▼ more or less power · ◀&#xFE0E; ▶&#xFE0E; steer in the air',
+      ]
     : has('engine')
-      ? '<kbd>W</kbd><kbd>S</kbd> drive · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Shift</kbd> brake · drag to look around'
-      : 'No engine on this one: use your thrusters, or just roll · drag to look around';
+      ? [
+          '<kbd>W</kbd><kbd>S</kbd> drive · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Shift</kbd> brake · drag to look around',
+          'Hold ▲ to drive · ◀&#xFE0E; ▶&#xFE0E; steer · drag the screen to look around, pinch to zoom',
+        ]
+      : ['No engine on this one: use your thrusters, or just roll · drag to look around', 'No engine on this one: use your thrusters, or just roll'];
+  $('drive-tip').innerHTML = `<span class="no-touch">${tips[0]}</span><span class="touch-only">${tips[1]}</span>`;
   clearTimeout(setupPlay.t);
   setupPlay.t = setTimeout(() => $('drive-tip').classList.add('fade'), 9000);
 }

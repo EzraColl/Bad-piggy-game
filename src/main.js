@@ -74,3 +74,8 @@ async function boot(hotData = {}) {
 const hot = window.claude?.hot;
 if (hot?.ready) hot.ready(boot);
 else boot(hot?.data ?? {});
+
+// The website version (docs/index.html links a manifest) keeps a copy for playing offline.
+if ('serviceWorker' in navigator && window.isSecureContext && document.querySelector('link[rel="manifest"]')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}

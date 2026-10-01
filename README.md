@@ -4,13 +4,19 @@ A 3D physics building game in the spirit of Bad Piggies. Bolt wheels, engines, b
 propellers, soda rockets and TNT onto a grid, press **GO**, and get the pig across the finish
 line in one piece (or at least the pig part).
 
-Runs in any modern browser on a laptop. Nothing to install.
+Runs in any modern browser on a laptop or an iPad. Nothing to install.
 
 ## Play it
 
-**Easiest:** download [`PigRig3D.html`](PigRig3D.html) (click it, then the download button) and
-double-click the file. Everything, including the physics engine, is inside that one file, so it
-works offline.
+**On the web (laptop or iPad):** https://ezracoll.github.io/Bad-piggy-game/
+
+Share that link with anyone. On an iPad, open it in Safari, then tap the Share button and
+**Add to Home Screen**: the game gets its own pig icon, opens full screen like an app, and keeps
+working without Wi-Fi once it has been opened.
+
+**On a laptop without internet:** download [`PigRig3D.html`](PigRig3D.html) (click it, then the
+download button) and double-click the file. Everything, including the physics engine, is inside
+that one file.
 
 **From the source code:**
 
@@ -20,6 +26,22 @@ npm run dev      # opens a local server with live reload
 npm run build    # rebuilds PigRig3D.html
 npm test         # drives every level's hint build to the finish without a browser
 ```
+
+## Putting it on the web
+
+The website is the `docs/` folder, published by GitHub Pages. It only has to be switched on once:
+
+1. On GitHub, open the repository's **Settings** tab, then **Pages** in the left-hand list.
+2. Under **Build and deployment**, set **Source** to **Deploy from a branch**.
+3. Pick the branch `claude/3d-bad-piggies-ray-tracing-un2zwh` and the folder **/docs**, then
+   **Save**.
+
+About a minute later the game is live at the address above. Every `npm run build` refreshes
+`docs/index.html`, so pushing a new build updates the website too.
+
+`docs/` holds the game page (the same single-file game plus links to the extras), the
+home-screen icons, `manifest.webmanifest` (name, icon and full-screen mode for Add to Home
+Screen) and `sw.js`, a small service worker that keeps a copy so the game opens offline.
 
 ## What's in it
 
@@ -78,6 +100,29 @@ game at 60 frames per second needs dedicated ray-tracing hardware that browsers 
 
 ## Controls
 
+On a touchscreen (iPad, tablet) the game switches to touch controls by itself:
+
+| Building | |
+| --- | --- |
+| Tap the grid | place a part |
+| Drag on the grid | place a whole row |
+| Press and hold a part | remove it |
+| Drag empty space | look around |
+| Pinch | zoom (two fingers also turn the view) |
+| Buttons | Inside boxes, Mirror, turn thrusters, Eraser, turn view, Undo |
+
+| Driving | |
+| --- | --- |
+| ▲ ▼ (bottom right) | drive and reverse; more or less power when flying |
+| ◀ ▶ (bottom left) | steer |
+| Brake | stop the wheels |
+| Rockets (hold), Propellers, Pop balloon, Detonate TNT | buttons above the pads |
+| Drag the screen / pinch | look around / zoom |
+
+Ray-traced photos save through the share sheet on an iPad (**Save Image** puts them in Photos).
+
+With a keyboard:
+
 | Building | |
 | --- | --- |
 | Click / drag on the grid | place parts (dragging paints a row) |
@@ -116,6 +161,7 @@ src/render/    renderer and post-processing, sky, terrain, vegetation, part mode
 src/audio/     Web Audio synthesiser
 src/ui/        menus and HUD
 tools/         headless level tests, stress test, build packaging
+docs/          the website (GitHub Pages): game page, icons, web app manifest, offline worker
 ```
 
 ## Credits

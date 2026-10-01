@@ -1,0 +1,15 @@
+{
+  "name": "Pig Rig 3D",
+  "short_name": "Pig Rig",
+  "description": "Build a contraption, get the pig to the finish. A 3D physics building game.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#10120d",
+  "theme_color": "#10120d",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

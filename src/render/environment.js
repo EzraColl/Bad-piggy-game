@@ -108,9 +108,13 @@ export class WorldEnvironment {
     const lum = (v) => 0.2126 * v.x + 0.7152 * v.y + 0.0722 * v.z;
     const skyIrradiance = Math.PI * lum(sky.upper);
     const sunIrradiance = this.sun.intensity * Math.max(0.4, this.sunDir.y); // low suns still leave a bright sky
-    this.scene.environmentIntensity = THREE.MathUtils.clamp((sunIrradiance * 0.42) / Math.max(1e-4, skyIrradiance), 0.05, 1.5);
-    this.skyInfo = { sky, skyIrradiance, sunIrradiance, envIntensity: this.scene.environmentIntensity };
-    this.fogColor = new THREE.Color(sky.horizon.x, sky.horizon.y, sky.horizon.z).multiplyScalar(this.scene.environmentIntensity * 1.1);
+    const measured = skyIrradiance > 1e-4 && Number.isFinite(skyIrradiance);
+    // if the graphics chip could not render the measurement, fall back to a typical clear day
+    this.scene.environmentIntensity = measured ? THREE.MathUtils.clamp((sunIrradiance * 0.42) / skyIrradiance, 0.05, 1.5) : 0.12;
+    this.skyInfo = { sky, skyIrradiance, sunIrradiance, envIntensity: this.scene.environmentIntensity, measured };
+    this.fogColor = measured
+      ? new THREE.Color(sky.horizon.x, sky.horizon.y, sky.horizon.z).multiplyScalar(this.scene.environmentIntensity * 1.1)
+      : new THREE.Color(0.69, 0.74, 0.76);
     // draw the sky at the brightness it lights the world with (it was ~8x brighter, so it looked
     // white and glared around the sun)
     this.sky.material.uniforms.skyScale.value = this.scene.environmentIntensity;
@@ -145,18 +149,25 @@ export class WorldEnvironment {
   // hemisphere (how much light the sky pours onto the ground).
   measureSky() {
     const N = 16;
-    const rt = new THREE.WebGLCubeRenderTarget(N, { type: THREE.FloatType });
+    // 32-bit float rendering needs EXT_color_buffer_float; otherwise read half floats
+    const full = this.renderer.extensions.has('EXT_color_buffer_float');
+    const rt = new THREE.WebGLCubeRenderTarget(N, { type: full ? THREE.FloatType : THREE.HalfFloatType });
     const cc = new THREE.CubeCamera(0.1, 1000, rt);
     this.envScene.add(cc);
     cc.update(this.renderer, this.envScene);
     const buf = new Float32Array(N * N * 4);
+    const half = full ? null : new Uint16Array(N * N * 4);
     const horizon = new THREE.Vector3();
     const upper = new THREE.Vector3();
     let nh = 0;
     let nu = 0;
     // faces: 0 +x, 1 -x, 2 +y, 3 -y, 4 +z, 5 -z ; row 0 of a side face is its bottom edge
     for (const face of [0, 1, 2, 4, 5]) {
-      this.renderer.readRenderTargetPixels(rt, 0, 0, N, N, buf, face);
+      if (full) this.renderer.readRenderTargetPixels(rt, 0, 0, N, N, buf, face);
+      else {
+        this.renderer.readRenderTargetPixels(rt, 0, 0, N, N, half, face);
+        for (let i = 0; i < half.length; i++) buf[i] = THREE.DataUtils.fromHalfFloat(half[i]);
+      }
       for (let y = 0; y < N; y++) {
         for (let x = 0; x < N; x++) {
           const i = (y * N + x) * 4;

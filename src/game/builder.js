@@ -5,6 +5,8 @@
 // - "Inside boxes" mode drops pigs, engines, TNT and thrusters inside wooden or steel frames.
 // - "Mirror" copies every placement to the other side of the vehicle.
 // - Right-click (or the eraser, which can also drag) removes. Drag empty space to look around.
+// - On a touchscreen: tap places, a finger dragged across the grid paints, press and hold removes,
+//   and two fingers pinch to zoom and turn the view.
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -73,6 +75,7 @@ export class Builder {
     this.controls.maxDistance = 22;
     this.controls.maxPolarAngle = Math.PI * 0.49;
     this.controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+    this.controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE };
     this.controls.enabled = false;
     this.centre = this.origin.clone().add(new THREE.Vector3(0, this.dims[1] * 0.5, 0));
     this.controls.target.copy(this.centre);
@@ -82,6 +85,10 @@ export class Builder {
     this.hover = null;
     this.stroke = null;
     this._down = null;
+    this._touches = new Map(); // fingers (and pens) currently on the canvas
+    this._pending = null; // a finger on the grid that has not yet become a tap, drag or hold
+    this._pinch = null;
+    this._noHover = true; // no hover ghost until a mouse moves (fingers don't hover)
 
     this._onMove = (e) => this._pointerMove(e);
     this._onDown = (e) => this._pointerDown(e);
@@ -91,6 +98,7 @@ export class Builder {
     // capture phase so a drag on the grid can claim the pointer before the camera controls see it
     dom.addEventListener('pointerdown', this._onDown, true);
     window.addEventListener('pointerup', this._onUp);
+    window.addEventListener('pointercancel', this._onUp);
     dom.addEventListener('contextmenu', this._onContext);
   }
 
@@ -156,6 +164,10 @@ export class Builder {
     this.group.visible = on;
     this.controls.enabled = on;
     this.stroke = null;
+    this._clearPending();
+    this._touches.clear();
+    this._pinch = null;
+    this._noHover = true;
     if (on) {
       // front three-quarter view so the pig looks at you
       const d = 2.6 + Math.max(...this.dims) * 1.15;
@@ -522,6 +534,19 @@ export class Builder {
 
   _pointerMove(e) {
     if (!this.enabled) return;
+    if (e.pointerType !== 'mouse') {
+      const f = this._touches.get(e.pointerId);
+      if (f) {
+        f.x = e.clientX;
+        f.y = e.clientY;
+      }
+      if (this._pinch) return this._pinchMove();
+      const p = this._pending;
+      if (p && p.id === e.pointerId && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 10) this._beginTouchStroke();
+      if (!this.stroke || this.stroke.id !== e.pointerId) return; // a finger turning the camera: no ghost under it
+    } else {
+      this._noHover = false;
+    }
     this._setPointer(e);
     if (this.stroke) this._continueStroke();
     this._updateHover();
@@ -529,7 +554,7 @@ export class Builder {
 
   _updateHover() {
     if (!this.enabled) return;
-    this.hover = this._target();
+    this.hover = this._noHover ? null : this._target();
     for (const m of this.ghostMeshes ?? []) m.visible = false;
     this.outline.visible = false;
     this.eraseBox.visible = false;
@@ -558,8 +583,9 @@ export class Builder {
 
   _pointerDown(e) {
     if (!this.enabled) return;
+    if (e.pointerType !== 'mouse') return this._touchDown(e);
     this._down = { x: e.clientX, y: e.clientY, button: e.button };
-    if (e.button !== 0 && e.pointerType === 'mouse') return; // right/middle drag turns the camera
+    if (e.button !== 0) return; // right/middle drag turns the camera
     this._setPointer(e);
     const t = this._target();
     if (!t) return; // empty space: let the camera controls have the drag
@@ -567,9 +593,111 @@ export class Builder {
     if (erase && !t.cell) return;
     // the grid claims this drag
     this.controls.enabled = false;
+    this._startStroke(t, erase);
+  }
+
+  _startStroke(t, erase, id) {
     this._snapshot();
-    this.stroke = { erase, layer: t.place[1], last: null, changed: false, inside: t.inside };
+    this.stroke = { erase, layer: t.place[1], last: null, changed: false, inside: t.inside, id };
     this._strokeAt(t);
+  }
+
+  _endStroke() {
+    if (!this.stroke.changed) this.history.pop(); // nothing happened: drop the undo step
+    this.stroke = null;
+  }
+
+  // A finger on the grid waits to see what it is: lifted quickly it's a tap (place), moved it
+  // paints, held still on a part it removes that part. A second finger turns it into a pinch.
+  _touchDown(e) {
+    this._touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    this._noHover = false;
+    if (this._touches.size === 2 && (this._pending || this.stroke || this._pinch)) {
+      this._cancelTouchEdit();
+      this._pinch = this._spread();
+      return;
+    }
+    if (this._touches.size > 1) return; // the camera controls already own this gesture
+    this._setPointer(e);
+    const t = this._target();
+    if (!t) return;
+    const erase = this.eraser;
+    if (erase && !t.cell) return;
+    this.controls.enabled = false;
+    const p = { t, erase, id: e.pointerId, x: e.clientX, y: e.clientY, warn: 0, hold: 0 };
+    if (!erase && t.cell) {
+      // a red box appears on the part while the finger stays down, then the part comes off
+      p.warn = setTimeout(() => {
+        for (const m of this.ghostMeshes ?? []) m.visible = false;
+        this.outline.visible = false;
+        this.eraseBox.position.copy(this._worldCell(...t.cell));
+        this.eraseBox.visible = true;
+      }, 170);
+      p.hold = setTimeout(() => this._longPress(), 480);
+    }
+    this._pending = p;
+    this._updateHover();
+  }
+
+  _beginTouchStroke() {
+    const p = this._pending;
+    this._clearPending();
+    this._startStroke(p.t, p.erase, p.id);
+  }
+
+  _longPress() {
+    const p = this._pending;
+    if (!p) return;
+    this._clearPending();
+    this.remove(...p.t.cell);
+    this._clearHover();
+  }
+
+  _clearPending() {
+    if (!this._pending) return;
+    clearTimeout(this._pending.warn);
+    clearTimeout(this._pending.hold);
+    this._pending = null;
+  }
+
+  _cancelTouchEdit() {
+    this._clearPending();
+    if (this.stroke) {
+      const s = this.stroke;
+      this.stroke = null;
+      if (s.changed) this.undo();
+      else this.history.pop();
+    }
+    this._clearHover();
+  }
+
+  _clearHover() {
+    this._noHover = true;
+    this._updateHover();
+  }
+
+  _spread() {
+    const [a, b] = [...this._touches.values()];
+    if (!b) return null;
+    return { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  }
+
+  // two fingers: spread to zoom, move together to turn the view
+  _pinchMove() {
+    const now = this._spread();
+    const prev = this._pinch;
+    if (!now) return;
+    if (prev && prev.d) {
+      const c = this.controls;
+      const off = this.camera.position.clone().sub(c.target);
+      const s = new THREE.Spherical().setFromVector3(off);
+      const h = this.dom.clientHeight || 1;
+      s.radius = THREE.MathUtils.clamp((s.radius * prev.d) / Math.max(1, now.d), c.minDistance, c.maxDistance);
+      s.theta -= (2 * Math.PI * (now.x - prev.x)) / h;
+      s.phi = THREE.MathUtils.clamp(s.phi - (2 * Math.PI * (now.y - prev.y)) / h, 0.05, c.maxPolarAngle);
+      this.camera.position.copy(c.target).add(off.setFromSpherical(s));
+    }
+    this._pinch = now;
   }
 
   _strokeAt(t) {
@@ -611,11 +739,23 @@ export class Builder {
 
   _pointerUp(e) {
     if (!this.enabled) return;
+    if (e.pointerType !== 'mouse') {
+      if (!this._touches.delete(e.pointerId)) return; // a finger that started on a button
+      if (this._pending?.id === e.pointerId && e.type === 'pointerup') this._beginTouchStroke(); // a tap
+      else if (this._pending?.id === e.pointerId) this._clearPending();
+      if (this.stroke?.id === e.pointerId) this._endStroke();
+      if (this._pinch) this._pinch = this._touches.size === 2 ? this._spread() : { d: 0 };
+      if (this._touches.size === 0) {
+        this._pinch = null;
+        this.controls.enabled = true;
+        this._clearHover();
+      }
+      return;
+    }
     const d = this._down;
     this._down = null;
     if (this.stroke) {
-      if (!this.stroke.changed) this.history.pop(); // nothing happened: drop the undo step
-      this.stroke = null;
+      this._endStroke();
       this.controls.enabled = true;
       return;
     }
@@ -648,7 +788,9 @@ export class Builder {
     this.dom.removeEventListener('pointermove', this._onMove);
     this.dom.removeEventListener('pointerdown', this._onDown, true);
     window.removeEventListener('pointerup', this._onUp);
+    window.removeEventListener('pointercancel', this._onUp);
     this.dom.removeEventListener('contextmenu', this._onContext);
+    this._clearPending();
     this.scene.remove(this.group);
   }
 }
