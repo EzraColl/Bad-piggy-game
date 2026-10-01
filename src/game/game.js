@@ -261,11 +261,24 @@ export class Game {
     ui.show(this.state === 'play' ? 'play' : 'build');
   }
 
-  savePhoto() {
+  async savePhoto() {
     const url = this.photo.snapshot();
+    const filename = `pig-rig-${this.world.level.id}-${Date.now()}.png`;
+    if (this.downloads) {
+      const bin = atob(url.split(',')[1]);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      try {
+        const res = await this.downloads.save({ filename, data: new Blob([bytes], { type: 'image/png' }) });
+        if (res?.status === 'saved') ui.toast('Photo saved');
+      } catch (err) {
+        if (err?.code !== 'declined') ui.toast('Saving is not available here');
+      }
+      return;
+    }
     const a = document.createElement('a');
     a.href = url;
-    a.download = `pig-rig-${this.world.level.id}-${Date.now()}.png`;
+    a.download = filename;
     a.click();
   }
 

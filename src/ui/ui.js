@@ -61,8 +61,18 @@ export function bind(g) {
   $('btn-photo').onclick = () => game.enterPhoto();
   $('btn-photo-exit').onclick = () => game.exitPhoto();
   $('btn-photo-save').onclick = () => game.savePhoto();
-  // downloads are blocked inside embedded frames, so only offer saving in a normal tab
-  if (window.self !== window.top) $('btn-photo-save').hidden = true;
+  // Plain downloads are blocked inside embedded frames. There, offer saving only if the host
+  // provides a download capability (claude.ai's artifact viewer does).
+  if (window.self !== window.top) {
+    $('btn-photo-save').hidden = true;
+    window.claude?.use?.('downloads')
+      .then((d) => {
+        if (!d) return;
+        game.downloads = d;
+        $('btn-photo-save').hidden = false;
+      })
+      .catch(() => {});
+  }
   $('res-build').onclick = () => game.enterBuild();
   $('res-retry').onclick = () => game.restart();
   $('res-next').onclick = () => game.nextLevel();
