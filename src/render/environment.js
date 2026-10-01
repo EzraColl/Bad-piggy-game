@@ -4,6 +4,26 @@
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 
+let sunTex = null;
+function sunTexture() {
+  if (sunTex) return sunTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.07, 'rgba(255,252,240,1)');
+  g.addColorStop(0.1, 'rgba(255,236,200,0.45)');
+  g.addColorStop(0.25, 'rgba(255,214,160,0.12)');
+  g.addColorStop(0.6, 'rgba(255,200,140,0.03)');
+  g.addColorStop(1, 'rgba(255,190,120,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 256, 256);
+  sunTex = new THREE.CanvasTexture(c);
+  sunTex.colorSpace = THREE.SRGBColorSpace;
+  return sunTex;
+}
+
 export class WorldEnvironment {
   constructor(renderer, scene, theme, quality) {
     this.renderer = renderer;
@@ -30,13 +50,38 @@ export class WorldEnvironment {
     u.cloudElevation.value = 0.55;
     u.cloudScale.value = 0.00022;
     u.cloudSpeed.value = 0.00003;
+    // skyScale lets the visible sky dome match the brightness of the light it casts; skyLimit softly
+    // caps the glow around the sun so looking towards it never floods the screen white.
+    this.sky.material.uniforms.skyScale = { value: 1 };
+    this.sky.material.uniforms.skyLimit = { value: 1e6 };
+    this.sky.material.fragmentShader = this.sky.material.fragmentShader
+      .replace('uniform float time;', 'uniform float time;\nuniform float skyScale;\nuniform float skyLimit;')
+      .replace(
+        'gl_FragColor = vec4( texColor, 1.0 );',
+        `vec3 skyCol = texColor * skyScale;
+			float peak = max( max( skyCol.r, skyCol.g ), skyCol.b );
+			float knee = skyLimit * 0.55;
+			if ( peak > knee ) skyCol *= ( knee + ( skyLimit - knee ) * ( 1.0 - exp( -( peak - knee ) / ( skyLimit - knee ) ) ) ) / peak;
+			gl_FragColor = vec4( skyCol, 1.0 );`,
+      );
     scene.add(this.sky);
+    // The sky model's own sun disc is hundreds of times brighter than the sky and flares into a
+    // blinding glare. Draw a softer sun instead: a warm disc with a gentle halo.
+    u.showSunDisc.value = 0;
+    this.sunSprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: sunTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }),
+    );
+    this.sunSprite.scale.setScalar(300);
+    this.sunSprite.frustumCulled = false;
+    this.sunSprite.renderOrder = -1;
+    scene.add(this.sunSprite);
 
     const t = THREE.MathUtils.clamp(theme.sun.elevation / 45, 0, 1);
     const warm = new THREE.Color(1.0, 0.58, 0.32);
     const white = new THREE.Color(1.0, 0.95, 0.88);
     this.sunColor = warm.clone().lerp(white, Math.sqrt(t));
     this.sun = new THREE.DirectionalLight(this.sunColor, 5.2 * (0.55 + 0.45 * t));
+    this.sunSprite.material.color.copy(this.sunColor).multiplyScalar(1.8);
     this.sun.castShadow = true;
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 0.035;
@@ -66,6 +111,10 @@ export class WorldEnvironment {
     this.scene.environmentIntensity = THREE.MathUtils.clamp((sunIrradiance * 0.42) / Math.max(1e-4, skyIrradiance), 0.05, 1.5);
     this.skyInfo = { sky, skyIrradiance, sunIrradiance, envIntensity: this.scene.environmentIntensity };
     this.fogColor = new THREE.Color(sky.horizon.x, sky.horizon.y, sky.horizon.z).multiplyScalar(this.scene.environmentIntensity * 1.1);
+    // draw the sky at the brightness it lights the world with (it was ~8x brighter, so it looked
+    // white and glared around the sun)
+    this.sky.material.uniforms.skyScale.value = this.scene.environmentIntensity;
+    this.sky.material.uniforms.skyLimit.value = 2.4;
     scene.fog = new THREE.FogExp2(this.fogColor, theme.fog);
     scene.background = null;
   }
@@ -163,12 +212,15 @@ export class WorldEnvironment {
     light.target.updateMatrixWorld();
   }
 
-  update(time) {
+  update(time, camera) {
     this.sky.material.uniforms.time.value = time;
+    if (camera) this.sunSprite.position.copy(camera.position).addScaledVector(this.sunDir, 4000);
   }
 
   dispose() {
     this.scene.remove(this.sky);
+    this.scene.remove(this.sunSprite);
+    this.sunSprite.material.dispose();
     this.scene.remove(this.sun);
     this.scene.remove(this.sun.target);
     this.sun.shadow.map?.dispose();

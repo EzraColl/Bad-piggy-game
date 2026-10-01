@@ -45,7 +45,7 @@ export class Game {
     this.rig = new CameraRig(this.camera, graphics.canvas);
     this.photo = new PhotoMode(graphics);
     this.fps = { frames: 0, t: 0, value: 60 };
-    this.autoQuality = { t: 0, frames: 0, done: !!store.setting('qualityChosen', false) };
+    this.autoQuality = { t: 0, frames: 0, warned: false };
     graphics.onResize = (h, fov) => this.world?.effects.setPixelScale(h, fov);
     this._bindInput();
     ui.bind(this);
@@ -393,7 +393,7 @@ export class Game {
     }
 
     updateWind(this.time);
-    w.env.update(this.time);
+    w.env.update(this.time, this.camera);
 
     if (this.sim) {
       if (this.demo) {
@@ -555,19 +555,28 @@ export class Game {
       f.t = 0;
       ui.fps(f.value);
     }
-    // One-time automatic downgrade if the first drive is choppy.
+    // Keep the game at 40+ fps: dynamic resolution reacts first, and if that is already as low as
+    // it goes, step the graphics preset down (or suggest it, if the player picked one by hand).
     const a = this.autoQuality;
-    if (!a.done && this.state === 'play') {
+    if (['play', 'build', 'title', 'levels'].includes(this.state) && document.visibilityState === 'visible') {
       a.t += dt;
       a.frames++;
-      if (a.t > 5) {
-        a.done = true;
+      if (a.t >= 4) {
         const fps = a.frames / a.t;
+        a.t = 0;
+        a.frames = 0;
         const i = QUALITY_ORDER.indexOf(this.gfx.qualityName);
-        if (fps < 34 && i > 0) {
-          const next = QUALITY_ORDER[i - 1];
-          this.setQuality(next, false);
-          ui.toast(`Graphics set to ${QUALITY[next].label} for smoother driving. Change it in Settings.`);
+        const resolutionMaxedOut = this.gfx.dynScale <= this.gfx.minScale + 0.01;
+        if (fps < 40 && resolutionMaxedOut && i > 0) {
+          if (!this.store.setting('qualityChosen', false)) {
+            const next = QUALITY_ORDER[i - 1];
+            this.setQuality(next, false);
+            this.gfx.resetAdapt();
+            ui.toast(`Graphics set to ${QUALITY[next].label} to keep it above 40 fps`);
+          } else if (!a.warned) {
+            a.warned = true;
+            ui.toast(`Running at ${Math.round(fps)} fps. A lower graphics setting would be smoother.`);
+          }
         }
       }
     }
@@ -576,12 +585,13 @@ export class Game {
   setQuality(name, manual = true) {
     this.gfx.setQuality(name);
     this.world?.env.setQuality(this.gfx.quality);
+    if (this.world) {
+      this.world.levelView.grassDist = this.gfx.quality.grassDist;
+      this.world.levelView.treeDist = this.gfx.quality.treeDist;
+    }
     this.world?.effects.setPixelScale(this.gfx.renderer.domElement.height, this.camera.fov);
     this.store.set('quality', name);
-    if (manual) {
-      this.store.set('qualityChosen', true);
-      this.autoQuality.done = true;
-    }
+    if (manual) this.store.set('qualityChosen', true);
   }
 }
 

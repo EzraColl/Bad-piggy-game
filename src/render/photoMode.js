@@ -104,7 +104,7 @@ export class PhotoMode {
     const near = camera.position;
     lv.scatter.traverse((o) => {
       if (!o.isInstancedMesh) return;
-      const baked = bakeInstanced(o, near, 160, 220);
+      const baked = bakeInstanced(o, near, 130, 140);
       if (baked) {
         if (o.material.map) baked.material.map = o.material.map;
         scene.add(baked);
@@ -126,7 +126,8 @@ export class PhotoMode {
     this.skyRT = env.skyCubeTexture(512);
     scene.background = this.skyRT.texture;
     scene.environment = this.skyRT.texture;
-    scene.environmentIntensity = 1;
+    scene.environmentIntensity = env.scene.environmentIntensity;
+    scene.backgroundIntensity = env.scene.environmentIntensity;
     const sun = new THREE.DirectionalLight(env.sun.color, env.sun.intensity);
     sun.position.copy(env.sunDir).multiplyScalar(100);
     scene.add(sun);

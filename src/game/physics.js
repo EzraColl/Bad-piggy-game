@@ -23,6 +23,8 @@ export const PROP_KINDS = {
   fence: { dynamic: false },
   boulder: { dynamic: false },
   sign: { dynamic: false },
+  island: { dynamic: false },
+  spire: { dynamic: false },
 };
 
 export class LevelPhysics {
@@ -72,10 +74,44 @@ export class LevelPhysics {
     return { x: def.x, y, z };
   }
 
+  // Floating islands and rock spires: flat grassy tops at `lift` metres above the road.
+  _addSkyRock(def) {
+    const { R, world, terrain } = this;
+    const z = terrain.center(def.x) + (def.z ?? 0);
+    const top = terrain.profile(def.x) + def.lift;
+    const r = def.r ?? 8;
+    const colliders = [];
+    if (def.type === 'island') {
+      const slab = 1.2;
+      colliders.push(R.ColliderDesc.cylinder(slab, r).setTranslation(def.x, top - slab, z));
+      // rocky underside: a cone hanging point-down beneath the slab
+      const depth = def.depth ?? r * 1.2;
+      colliders.push(
+        R.ColliderDesc.cone(depth / 2, r * 0.92)
+          .setRotation({ x: 1, y: 0, z: 0, w: 0 })
+          .setTranslation(def.x, top - slab * 2 - depth / 2, z),
+      );
+    } else {
+      const ground = Math.min(terrain.height(def.x, z), terrain.height(def.x + r, z), terrain.height(def.x - r, z)) - 3;
+      const h = (top - ground) / 2;
+      colliders.push(R.ColliderDesc.cylinder(h, r).setTranslation(def.x, ground + h, z));
+    }
+    let first = null;
+    for (const cd of colliders) {
+      cd.setFriction(0.9).setRestitution(0.05).setCollisionGroups(groups(G.PROP, 0xffff));
+      const c = world.createCollider(cd);
+      first = first ?? c;
+    }
+    const prop = { def, kind: def.type, body: null, collider: first, alive: true, explosive: false, home: { x: def.x, y: top, z }, rotation: { x: 0, y: 0, z: 0, w: 1 } };
+    this.props.push(prop);
+    return prop;
+  }
+
   _addProp(def) {
     const { R, world } = this;
     const kind = PROP_KINDS[def.type];
     if (!kind) return;
+    if (def.type === 'island' || def.type === 'spire') return this._addSkyRock(def);
     let colliderDesc;
     let half = 0.5;
     let rotation = { x: 0, y: 0, z: 0, w: 1 };

@@ -11,6 +11,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { PARTS, DIRS, WHEEL_MOUNTS, WHEEL_DROP, cellLocal, cellKey, isFrame, fitsInside } from './parts.js';
 import { createPartMesh, animatePig, INSIDE_SCALE } from '../render/partMeshes.js';
 import { AxleView } from '../render/axles.js';
+import { buildBrackets, hasBrackets, BRACKET_DIRS, INSIDE_BRACKET_DIRS } from '../render/brackets.js';
 
 const ghostOk = new THREE.MeshStandardMaterial({ color: 0x8bff6a, emissive: 0x2f8f10, emissiveIntensity: 0.6, transparent: true, opacity: 0.45, depthWrite: false });
 const ghostBad = new THREE.MeshStandardMaterial({ color: 0xff5a4a, emissive: 0x8f1a10, emissiveIntensity: 0.6, transparent: true, opacity: 0.4, depthWrite: false });
@@ -418,6 +419,18 @@ export class Builder {
         m.add(a);
       }
       this.partsGroup.add(m);
+      if (hasBrackets(c.type)) {
+        const boxed = !!this.at(c.i, c.j, c.k).frame;
+        const dirs = boxed
+          ? INSIDE_BRACKET_DIRS
+          : BRACKET_DIRS.filter(([dx, dy, dz]) => {
+              const n = this.at(c.i + dx, c.j + dy, c.k + dz);
+              return n.frame || (n.item && n.item.type !== 'wheel');
+            });
+        const br = buildBrackets(c.type, m.quaternion, dirs, boxed ? INSIDE_SCALE[c.type] ?? 0.8 : 1);
+        br.position.copy(m.position);
+        this.partsGroup.add(br);
+      }
       if (c.type === 'wheel') {
         const mount = this._wheelMount(c);
         if (mount) {

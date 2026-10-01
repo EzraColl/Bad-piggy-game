@@ -5,9 +5,9 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { buildTerrainMeshes } from './terrainView.js';
-import { buildGrass, buildScatter, cullGrass } from './vegetation.js';
+import { buildGrass, buildScatter, cullGrass, cullScatter, buildTopDecor } from './vegetation.js';
 import { crateTextures, tntTexture, woodTextures, hayTexture, checkerTexture, signTexture } from './textures.js';
-import { FINISH_HALF_WIDTH } from '../game/simulation.js';
+import { goalPoint, finishHalfWidth } from '../game/simulation.js';
 import { createNoise2D, fbm } from '../util/noise.js';
 
 function shadowed(m) {
@@ -91,6 +91,7 @@ function boulderGeometry(r, seed) {
 export class LevelView {
   constructor(level, terrain, phys, theme, quality) {
     this.level = level;
+    this.theme = theme;
     this.terrain = terrain;
     this.phys = phys;
     this.group = new THREE.Group();
@@ -100,6 +101,8 @@ export class LevelView {
     this.terrainFar = far;
     this.group.add(near, far);
     this.grass = buildGrass(level, terrain, theme, quality.grass);
+    this.grassDist = quality.grassDist ?? 100;
+    this.treeDist = quality.treeDist ?? 250;
     this.group.add(this.grass);
     this.scatter = buildScatter(level, terrain, theme, quality);
     this.group.add(this.scatter);
@@ -112,7 +115,11 @@ export class LevelView {
 
   setPhysics(phys, pose = null) {
     // a fresh physics world was created for a retry: rebuild dynamic props
-    for (const m of this.propMeshes.values()) this.group.remove(m);
+    for (const m of this.propMeshes.values()) {
+      this.group.remove(m);
+      // islands and spires are rebuilt per run: free their one-off geometry
+      if (m.userData.worldPlaced) m.traverse((o) => o.isMesh && !o.isInstancedMesh && o.geometry.dispose());
+    }
     this.propMeshes.clear();
     this.phys = phys;
     this.pose = pose;
@@ -173,6 +180,10 @@ export class LevelView {
         case 'boulder':
           obj = new THREE.Mesh(boulderGeometry(def.r ?? 1.5, Math.round(def.x)), mats.rock);
           break;
+        case 'island':
+        case 'spire':
+          obj = this._skyRock(prop);
+          break;
         case 'sign': {
           const g = new THREE.Group();
           const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2, 10), mats.wood);
@@ -192,6 +203,11 @@ export class LevelView {
         default:
           continue;
       }
+      if (obj.userData.worldPlaced) {
+        this.propMeshes.set(prop, obj);
+        this.group.add(obj);
+        continue;
+      }
       shadowed(obj);
       const pos = prop.home;
       obj.position.set(pos.x, pos.y, pos.z);
@@ -199,6 +215,69 @@ export class LevelView {
       this.propMeshes.set(prop, obj);
       this.group.add(obj);
     }
+  }
+
+  // A floating island (grassy cap over a craggy cone of rock) or a tall rock spire, built around
+  // the top-centre point. Returned already in world position.
+  _skyRock(prop) {
+    const def = prop.def;
+    const theme = this.theme;
+    const top = prop.home;
+    const r = def.r ?? 8;
+    const noise = createNoise2D(Math.round(def.x * 13 + r * 7));
+    const rock = new THREE.Color().setRGB(theme.rock[0], theme.rock[1], theme.rock[2], THREE.SRGBColorSpace);
+    const dirt = new THREE.Color().setRGB(theme.dirt[0], theme.dirt[1], theme.dirt[2], THREE.SRGBColorSpace);
+    const grass = new THREE.Color().setRGB(theme.grass[0], theme.grass[1], theme.grass[2], THREE.SRGBColorSpace);
+    let prof;
+    let height;
+    if (def.type === 'island') {
+      const depth = def.depth ?? r * 1.2;
+      height = depth + 2.4;
+      prof = [[0.01, -height], [r * 0.18, -height + depth * 0.12], [r * 0.45, -height + depth * 0.45], [r * 0.78, -2.4 - depth * 0.15], [r * 0.97, -1.4], [r, -0.25], [r * 0.96, 0], [0.01, 0.02]];
+    } else {
+      const ground = this.terrain.height(def.x, top.z) - 2;
+      height = top.y - ground;
+      prof = [[r * 1.4, -height], [r * 1.28, -height * 0.7], [r * 1.12, -height * 0.4], [r * 1.04, -height * 0.15], [r, -0.25], [r * 0.96, 0], [0.01, 0.02]];
+    }
+    const pts = prof.map(([x, y]) => new THREE.Vector2(x, y));
+    const geo = new THREE.LatheGeometry(new THREE.SplineCurve(pts).getPoints(48), 56);
+    const p = geo.attributes.position;
+    const col = new Float32Array(p.count * 3);
+    const v = new THREE.Vector3();
+    const c = new THREE.Color();
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i);
+      const ang = Math.atan2(v.z, v.x);
+      const rad = Math.hypot(v.x, v.z);
+      const isTop = v.y > -0.05 && rad < r * 0.97;
+      if (!isTop && rad > 0.05) {
+        // craggy, layered rock
+        const bump = 1 + 0.14 * noise(ang * 3, v.y * 0.25) + 0.06 * noise(ang * 9, v.y * 0.9);
+        const ledge = 1 + 0.05 * Math.sign(Math.sin(v.y * 1.7 + noise(ang, v.y * 0.1) * 2));
+        v.x *= bump * ledge;
+        v.z *= bump * ledge;
+        p.setXYZ(i, v.x, v.y, v.z);
+      }
+      if (isTop) c.copy(grass);
+      else if (v.y > -0.9) c.copy(dirt).lerp(grass, 0.25);
+      else c.copy(rock).multiplyScalar(0.7 + 0.35 * (0.5 + 0.5 * Math.sin(v.y * 2.1 + noise(ang * 2, v.y * 0.2) * 3)));
+      col[i * 3] = c.r;
+      col[i * 3 + 1] = c.g;
+      col[i * 3 + 2] = c.b;
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.computeVertexNormals();
+    const tex = this.terrainNear.material;
+    const mat = new THREE.MeshPhysicalMaterial({ vertexColors: true, map: tex.map, normalMap: tex.normalMap, roughness: 0.92, specularIntensity: 0.35 });
+    const g = new THREE.Group();
+    const m = new THREE.Mesh(geo, mat);
+    m.position.copy(top);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    g.add(m);
+    g.add(buildTopDecor(top, r, Math.round(def.x * 7), theme));
+    g.userData.worldPlaced = true;
+    return g;
   }
 
   buildFinish() {
@@ -212,9 +291,11 @@ export class LevelView {
       this.finish = g;
       return;
     }
-    const W = FINISH_HALF_WIDTH;
-    const baseL = t.height(gx, gz - W);
-    const baseR = t.height(gx, gz + W);
+    const W = finishHalfWidth(this.level);
+    const goal = goalPoint(this.level, t);
+    const sky = this.level.goalLift !== undefined;
+    const baseL = sky ? goal.y : t.height(gx, gz - W);
+    const baseR = sky ? goal.y : t.height(gx, gz + W);
     const top = Math.max(baseL, baseR) + 5.2;
     for (const [z, base] of [[gz - W, baseL], [gz + W, baseR]]) {
       const h = top - base + 0.6;
@@ -241,7 +322,7 @@ export class LevelView {
     for (let i = 0; i < p.count; i++) {
       const x = gx + p.getX(i);
       const z = gz + p.getZ(i);
-      p.setXYZ(i, x, t.height(x, z) + 0.03, z);
+      p.setXYZ(i, x, (sky ? goal.y : t.height(x, z)) + 0.03, z);
     }
     strip.computeVertexNormals();
     const stripMesh = new THREE.Mesh(strip, mats.checkerGround);
@@ -318,7 +399,10 @@ export class LevelView {
         o.geometry.computeVertexNormals();
       }
     });
-    if (camera) cullGrass(this.grass, camera.position);
+    if (camera) {
+      cullGrass(this.grass, camera.position, this.grassDist);
+      cullScatter(this.scatter, camera.position, this.treeDist);
+    }
   }
 
   dispose() {

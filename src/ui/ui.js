@@ -313,12 +313,14 @@ export function setupPlay(g) {
   }
   $('play-goals').innerHTML = lvl.sandbox ? '' : starsHtml([false, false, false]);
   $('drive-tip').classList.remove('fade');
-  const engine = g.sim.car.parts.some((p) => p.type === 'engine');
-  $('drive-tip').innerHTML = engine
-    ? '<kbd>W</kbd><kbd>S</kbd> drive · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Shift</kbd> brake · drag to look around'
-    : 'No engine on this one: use your thrusters, or just roll · drag to look around';
+  const has = (t) => g.sim.car.parts.some((p) => p.type === t);
+  $('drive-tip').innerHTML = has('fan')
+    ? '<kbd>F</kbd> propellers on · <kbd>W</kbd><kbd>S</kbd> more or less power (climb or sink) · <kbd>A</kbd><kbd>D</kbd> steer in the air'
+    : has('engine')
+      ? '<kbd>W</kbd><kbd>S</kbd> drive · <kbd>A</kbd><kbd>D</kbd> steer · <kbd>Shift</kbd> brake · drag to look around'
+      : 'No engine on this one: use your thrusters, or just roll · drag to look around';
   clearTimeout(setupPlay.t);
-  setupPlay.t = setTimeout(() => $('drive-tip').classList.add('fade'), 7000);
+  setupPlay.t = setTimeout(() => $('drive-tip').classList.add('fade'), 9000);
 }
 
 export function updatePlay(g) {

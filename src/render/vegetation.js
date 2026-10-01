@@ -163,6 +163,16 @@ export function buildGrass(level, terrain, theme, density) {
 }
 
 // Hide grass chunks far from the camera; fog hides the edge.
+// Hide whole tree and rock patches beyond `maxDist` (they are tiny and fogged by then).
+export function cullScatter(group, cameraPos, maxDist) {
+  for (const im of group.children) {
+    const sph = im.boundingSphere;
+    if (!sph) continue;
+    const d = maxDist + sph.radius;
+    im.visible = sph.center.distanceToSquared(cameraPos) < d * d;
+  }
+}
+
 export function cullGrass(group, cameraPos, maxDist = 110) {
   const d2 = maxDist * maxDist;
   for (const im of group.children) {
@@ -291,13 +301,13 @@ function broadleafTree(seed) {
     trunkParts.push(br);
   }
   const cards = [];
-  const count = 95;
+  const count = 66; // the leaf texture is dense, so fewer, fuller cards look the same and draw faster
   for (let i = 0; i < count; i++) {
     const d = randomUnit(rand);
     const r = Math.pow(rand(), 0.35);
     const p = centre.clone().add(d.clone().multiply(radii).multiplyScalar(r));
     // a lumpy crown: a few sub-clumps
-    const size = 1.2 + rand() * 0.9;
+    const size = 1.35 + rand() * 0.9;
     const u = randomUnit(rand);
     const v = new THREE.Vector3().crossVectors(u, randomUnit(rand)).normalize();
     cards.push({ p, u: u.normalize(), v, w: size, h: size });
@@ -313,7 +323,7 @@ function pineTree(seed) {
   const trunk = new THREE.CylinderGeometry(0.08, 0.26, H, 8);
   trunk.translate(0, H / 2, 0);
   const cards = [];
-  const whorls = 11;
+  const whorls = 9;
   const centre = new THREE.Vector3(0, H * 0.5, 0);
   const radii = new THREE.Vector3(1.8, H * 0.5, 1.8);
   for (let w = 0; w < whorls; w++) {
@@ -402,26 +412,38 @@ export function buildScatter(level, terrain, theme, quality) {
   const q = new THREE.Quaternion();
   const up = new THREE.Vector3(0, 1, 0);
   const c = new THREE.Color();
+  // One instanced mesh per variant per patch of land, so patches outside the view (or outside the
+  // sun's shadow box) are skipped entirely instead of drawing every tree in the level each frame.
+  const CHUNK = 45;
+  const chunked = (list) => {
+    const byChunk = new Map();
+    for (const t of list) {
+      const key = `${Math.floor((t.x - b.x0) / CHUNK)}:${t.z > terrain.center(t.x) ? 1 : 0}`;
+      if (!byChunk.has(key)) byChunk.set(key, []);
+      byChunk.get(key).push(t);
+    }
+    return [...byChunk.values()];
+  };
   variants.forEach((vg, vi) => {
-    const list = trees[vi];
-    if (!list.length) return;
-    const trunks = new THREE.InstancedMesh(vg.trunk, trunkMat, list.length);
-    const leaves = new THREE.InstancedMesh(vg.leaves, leafMats[vg.kind], list.length);
-    list.forEach((t, i) => {
-      q.setFromAxisAngle(up, t.r);
-      m4.compose(new THREE.Vector3(t.x, t.y, t.z), q, new THREE.Vector3(t.s, t.s * (0.9 + (i % 5) * 0.05), t.s));
-      trunks.setMatrixAt(i, m4);
-      leaves.setMatrixAt(i, m4);
-      const pine = vg.kind === 'pine';
-      c.copy(leafA).lerp(leafB, rand());
-      if (!pine && rand() < 0.07) c.lerp(autumn, 0.5);
-      leaves.setColorAt(i, c);
-    });
-    for (const im of [trunks, leaves]) {
-      im.castShadow = true;
-      im.receiveShadow = true;
-      im.computeBoundingSphere();
-      group.add(im);
+    for (const list of chunked(trees[vi])) {
+      const trunks = new THREE.InstancedMesh(vg.trunk, trunkMat, list.length);
+      const leaves = new THREE.InstancedMesh(vg.leaves, leafMats[vg.kind], list.length);
+      list.forEach((t, i) => {
+        q.setFromAxisAngle(up, t.r);
+        m4.compose(new THREE.Vector3(t.x, t.y, t.z), q, new THREE.Vector3(t.s, t.s * (0.9 + (i % 5) * 0.05), t.s));
+        trunks.setMatrixAt(i, m4);
+        leaves.setMatrixAt(i, m4);
+        const pine = vg.kind === 'pine';
+        c.copy(leafA).lerp(leafB, rand());
+        if (!pine && rand() < 0.07) c.lerp(autumn, 0.5);
+        leaves.setColorAt(i, c);
+      });
+      for (const im of [trunks, leaves]) {
+        im.castShadow = true;
+        im.receiveShadow = true;
+        im.computeBoundingSphere();
+        group.add(im);
+      }
     }
   });
 
@@ -443,20 +465,81 @@ export function buildScatter(level, terrain, theme, quality) {
   }
   const rockTint = new THREE.Color().setRGB(theme.rock[0], theme.rock[1], theme.rock[2], THREE.SRGBColorSpace);
   rockVariants.forEach((g, vi) => {
-    const list = rockLists[vi];
-    if (!list.length) return;
-    const im = new THREE.InstancedMesh(g, rockMat, list.length);
-    list.forEach((r, i) => {
-      q.setFromEuler(new THREE.Euler(rand() * 0.4, r.r, rand() * 0.4));
-      m4.compose(new THREE.Vector3(r.x, r.y, r.z), q, new THREE.Vector3(r.s, r.s * (0.7 + rand() * 0.5), r.s * (0.8 + rand() * 0.4)));
+    for (const list of chunked(rockLists[vi])) {
+      const im = new THREE.InstancedMesh(g, rockMat, list.length);
+      list.forEach((r, i) => {
+        q.setFromEuler(new THREE.Euler(rand() * 0.4, r.r, rand() * 0.4));
+        m4.compose(new THREE.Vector3(r.x, r.y, r.z), q, new THREE.Vector3(r.s, r.s * (0.7 + rand() * 0.5), r.s * (0.8 + rand() * 0.4)));
+        im.setMatrixAt(i, m4);
+        c.copy(rockTint).multiplyScalar(0.75 + rand() * 0.4);
+        im.setColorAt(i, c);
+      });
+      im.castShadow = true;
+      im.receiveShadow = true;
+      im.computeBoundingSphere();
+      group.add(im);
+    }
+  });
+  return group;
+}
+
+let decorMats = null;
+
+// Grass, bushes and a tree or two for the flat top of a floating island or rock spire.
+// centre: world position of the middle of the top surface.
+export function buildTopDecor(centre, radius, seed, theme, density = 1) {
+  const group = new THREE.Group();
+  group.name = 'top-decor';
+  const rand = mulberry32(seed);
+  if (!decorMats) {
+    const bark = barkTexture();
+    decorMats = {
+      grass: windMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.82, metalness: 0 }),
+      trunk: new THREE.MeshStandardMaterial({ map: bark.map, normalMap: bark.normalMap, roughness: 0.92 }),
+      broad: new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.72, specularIntensity: 0.3, alphaTest: 0.45, side: THREE.DoubleSide, map: leafCardTexture() }),
+      pine: new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.72, specularIntensity: 0.3, alphaTest: 0.45, side: THREE.DoubleSide, map: needleCardTexture() }),
+    };
+  }
+  // grass clumps scattered over the top
+  const n = Math.round(radius * radius * 2.2 * density);
+  if (n > 0) {
+    const im = new THREE.InstancedMesh(grassClumpGeometry(mulberry32(seed + 1)), decorMats.grass, n);
+    const g1 = new THREE.Color().setRGB(theme.grass[0], theme.grass[1], theme.grass[2], THREE.SRGBColorSpace);
+    const g2 = new THREE.Color().setRGB(theme.grass2[0], theme.grass2[1], theme.grass2[2], THREE.SRGBColorSpace);
+    const m4 = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const c = new THREE.Color();
+    for (let i = 0; i < n; i++) {
+      const a = rand() * Math.PI * 2;
+      const r = Math.sqrt(rand()) * radius * 0.92;
+      const sc = 0.7 + rand() * 0.7;
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * Math.PI * 2);
+      m4.compose(new THREE.Vector3(centre.x + Math.cos(a) * r, centre.y - 0.02, centre.z + Math.sin(a) * r), q, new THREE.Vector3(sc, sc, sc));
       im.setMatrixAt(i, m4);
-      c.copy(rockTint).multiplyScalar(0.75 + rand() * 0.4);
-      im.setColorAt(i, c);
-    });
-    im.castShadow = true;
+      im.setColorAt(i, c.copy(g1).lerp(g2, rand()));
+    }
     im.receiveShadow = true;
+    im.layers.set(GRASS_LAYER);
     im.computeBoundingSphere();
     group.add(im);
-  });
+  }
+  // a tree near the back edge, away from where you land
+  if (radius >= 5) {
+    const t = theme.pines ? pineTree(seed + 5) : broadleafTree(seed + 5);
+    const trunk = new THREE.Mesh(t.trunk, decorMats.trunk);
+    const leaves = new THREE.Mesh(t.leaves, theme.pines ? decorMats.pine : decorMats.broad);
+    const tree = new THREE.Group();
+    tree.add(trunk, leaves);
+    const a = (rand() < 0.5 ? 1 : -1) * (Math.PI / 2 + (rand() - 0.5) * 0.6);
+    tree.position.set(centre.x + Math.cos(a) * radius * 0.62, centre.y - 0.1, centre.z + Math.sin(a) * radius * 0.62);
+    tree.scale.setScalar(0.65 + rand() * 0.2);
+    tree.traverse((o) => {
+      if (o.isMesh) {
+        o.castShadow = true;
+        o.receiveShadow = true;
+      }
+    });
+    group.add(tree);
+  }
   return group;
 }

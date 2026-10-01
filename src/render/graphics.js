@@ -11,11 +11,12 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { GRASS_LAYER } from './vegetation.js';
 import { partMaterials } from './partMeshes.js';
 
+// probe: frames between live-reflection updates (0 = off). grassDist: metres of grass drawn.
 export const QUALITY = {
-  low: { label: 'Low', scale: 0.8, maxDpr: 1, shadowMap: 1024, shadowSoftness: 1.5, ao: false, bloom: false, msaa: 0, smaa: true, grass: 0.3, trees: 0.6, probe: 0 },
-  medium: { label: 'Medium', scale: 1, maxDpr: 1, shadowMap: 2048, shadowSoftness: 2.5, ao: false, bloom: true, msaa: 4, smaa: false, grass: 0.65, trees: 1, probe: 6 },
-  high: { label: 'High', scale: 1, maxDpr: 1.5, shadowMap: 2048, shadowSoftness: 3, ao: true, bloom: true, msaa: 4, smaa: false, grass: 1, trees: 1, probe: 3 },
-  ultra: { label: 'Ultra', scale: 1, maxDpr: 2, shadowMap: 4096, shadowSoftness: 3.5, ao: true, bloom: true, msaa: 4, smaa: false, grass: 1.6, trees: 1.3, probe: 1 },
+  low: { label: 'Low', scale: 0.75, maxDpr: 1, shadowMap: 1024, shadowSoftness: 1.5, ao: false, bloom: false, msaa: 0, smaa: true, grass: 0.3, grassDist: 55, trees: 0.6, treeDist: 120, probe: 0 },
+  medium: { label: 'Medium', scale: 1, maxDpr: 1, shadowMap: 2048, shadowSoftness: 2.5, ao: false, bloom: true, msaa: 2, smaa: false, grass: 0.5, grassDist: 75, trees: 0.85, treeDist: 170, probe: 12 },
+  high: { label: 'High', scale: 1, maxDpr: 1.25, shadowMap: 2048, shadowSoftness: 3, ao: false, bloom: true, msaa: 4, smaa: false, grass: 0.9, grassDist: 95, trees: 1, treeDist: 240, probe: 6 },
+  ultra: { label: 'Ultra', scale: 1, maxDpr: 2, shadowMap: 4096, shadowSoftness: 3.5, ao: true, bloom: true, msaa: 4, smaa: false, grass: 1.5, grassDist: 130, trees: 1.3, treeDist: 400, probe: 2 },
 };
 export const QUALITY_ORDER = ['low', 'medium', 'high', 'ultra'];
 
@@ -65,6 +66,9 @@ export class Graphics {
     renderer.toneMappingExposure = 1;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
+    // Shadows are drawn once per frame (see render). Left on auto, three.js would redraw the shadow
+    // map for every extra scene render: the AO pass and all six sides of the reflection probe.
+    renderer.shadowMap.autoUpdate = false;
     this.renderer = renderer;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(55, 1, 0.1, 6000);
@@ -73,6 +77,7 @@ export class Graphics {
     this.quality = QUALITY[this.qualityName];
     this.frame = 0;
     this.dynScale = 1;
+    this.minScale = 0.55;
     this.adaptTimer = -2;
     this.probeTarget = null;
     this.hideForProbe = [];
@@ -134,7 +139,7 @@ export class Graphics {
     if (this.adaptTimer < 1.2) return;
     this.adaptTimer = 0;
     let s = this.dynScale;
-    if (this.ft > 1 / 48) s = Math.max(0.6, s - 0.1);
+    if (this.ft > 1 / 45) s = Math.max(this.minScale, s - 0.1);
     else if (this.ft < 1 / 57) s = Math.min(1, s + 0.05);
     if (Math.abs(s - this.dynScale) > 1e-3) {
       this.dynScale = s;
@@ -194,6 +199,7 @@ export class Graphics {
   render() {
     this.frame++;
     const q = this.quality;
+    this.renderer.shadowMap.needsUpdate = true;
     if (this.probeCamera && this.probePoint && (this.probeNeedsFill || this.frame % q.probe === 0)) {
       this.probeNeedsFill = false;
       this.probeCamera.position.copy(this.probePoint);

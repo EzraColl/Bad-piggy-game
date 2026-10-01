@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { createPartMesh, buildWheelMesh, buildBalloonMesh, setString, partMaterials, animatePig, INSIDE_SCALE } from './partMeshes.js';
 import { AxleView } from './axles.js';
+import { buildBrackets, hasBrackets, BRACKET_DIRS, INSIDE_BRACKET_DIRS } from './brackets.js';
 import { WHEEL_RADIUS } from '../game/parts.js';
 
 const _p = new THREE.Vector3();
@@ -29,6 +30,7 @@ export class VehicleView {
       q?.set(r.x, r.y, r.z, r.w);
     });
     this.axles = new Map();
+    this.brackets = new Map();
     this.effects = effects;
     this.terrain = terrain;
     this.theme = theme;
@@ -55,6 +57,15 @@ export class VehicleView {
         }
       }
       if (p.inside) m.scale.setScalar(INSIDE_SCALE[p.type] ?? 0.8);
+      if (hasBrackets(p.type)) {
+        const [i, j, k] = p.cell;
+        const dirs = p.inside
+          ? INSIDE_BRACKET_DIRS
+          : BRACKET_DIRS.filter(([dx, dy, dz]) => (car.byKey.get(`${i + dx},${j + dy},${k + dz}`) ?? []).some((q) => q.type !== 'wheel'));
+        const br = buildBrackets(p.type, p.localQuat, dirs, p.inside ? INSIDE_SCALE[p.type] ?? 0.8 : 1);
+        this.brackets.set(p, br);
+        this.group.add(br);
+      }
       if (p.type === 'wheel' && p.mount) {
         const axle = new AxleView(p.mount);
         this.axles.set(p, axle);
@@ -111,6 +122,14 @@ export class VehicleView {
       } else if (p.type === 'wheel' && dt > 0) {
         this._wheelDust(p, m);
       }
+    }
+    // brackets ride with the part's body, in the cell's own (unturned) frame
+    for (const [p, br] of this.brackets) {
+      br.visible = p.alive && !p.broken;
+      if (!br.visible) continue;
+      this.pose(p.body.rb, _bp, _bq);
+      br.position.copy(p.local).applyQuaternion(_bq).add(_bp);
+      br.quaternion.copy(_bq);
     }
     // axles follow the chassis at one end and the bouncing wheel at the other
     for (const [w, axle] of this.axles) {
@@ -180,6 +199,8 @@ export class VehicleView {
       this.group.remove(m);
       const ax = this.axles.get(e.part);
       if (ax) this.group.remove(ax.group);
+      const br = this.brackets.get(e.part);
+      if (br) this.group.remove(br);
       const b = this.balloons.get(e.part);
       if (b) {
         this.group.remove(b.mesh, b.string);

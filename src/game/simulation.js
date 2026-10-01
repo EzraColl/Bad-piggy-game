@@ -72,6 +72,18 @@ export class ScriptPilot {
   }
 }
 
+// Where the finish line is: on the road, or on top of a floating island / spire.
+export function goalPoint(level, terrain) {
+  const gx = level.goal;
+  const gz = terrain.center(gx);
+  const gy = level.goalLift !== undefined ? terrain.profile(gx) + level.goalLift : terrain.height(gx, gz);
+  return new Vector3(gx, gy, gz);
+}
+
+export function finishHalfWidth(level) {
+  return level.finishHalf ?? FINISH_HALF_WIDTH;
+}
+
 export class Simulation {
   constructor(RAPIER, level, blueprint, terrain = null) {
     this.R = RAPIER;
@@ -88,9 +100,7 @@ export class Simulation {
     this.maxSpeed = 0;
 
     const t = this.terrain;
-    const gx = level.goal;
-    const gz = t.center(gx);
-    this.goal = new Vector3(gx, t.height(gx, gz), gz);
+    this.goal = goalPoint(level, t);
     this.starPos = level.star ? new Vector3(level.star.x, t.profile(level.star.x) + level.star.lift, t.center(level.star.x)) : null;
     this.balloonCeilingY = t.profile(level.start) + (level.balloonCeiling ?? 32);
 
@@ -293,7 +303,11 @@ export class Simulation {
     if (!this.level.sandbox) {
       // the finish is a line across the road: cross it anywhere between the flag poles
       const dz = pig.z - this.goal.z;
-      if (pig.x >= this.goal.x && Math.abs(dz) < FINISH_HALF_WIDTH && pig.y < this.goal.y + 7 && pig.y > this.goal.y - 2.5) {
+      // up in the sky you have to actually come down to the flag, not just fly over it
+      const sky = this.level.goalLift !== undefined;
+      const above = sky ? 4.5 : 7;
+      const past = sky ? pig.x - this.goal.x < 10 : true;
+      if (pig.x >= this.goal.x && past && Math.abs(dz) < finishHalfWidth(this.level) && pig.y < this.goal.y + above && pig.y > this.goal.y - 2.5) {
         this.state = 'won';
         this.finishTime = this.time;
         this.events.push({ type: 'win', time: this.time });

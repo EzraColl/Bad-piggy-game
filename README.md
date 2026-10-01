@@ -23,9 +23,14 @@ npm test         # drives every level's hint build to the finish without a brows
 
 ## What's in it
 
-- **6 levels + a sandbox.** Meadow Run, Hog Leap (canyon jump), Balloon Mesa (float onto a
-  cliff), Crate Crusher (smash through crate walls), Summit Climb (steep mountain road) and
-  Rocket Canyon. Each has three stars: finish, grab the golden star, beat the clock.
+- **9 levels + a sandbox.** Meadow Run, Hog Leap (canyon jump), Balloon Mesa (float onto a
+  cliff), Crate Crusher (smash through crate walls), Summit Climb (steep mountain road), Rocket
+  Canyon, and three flying levels: Floating Island, Helicopter Peak (a rock spire you can only
+  reach by helicopter) and Sky Islands (three islands, each higher than the last). Each has three
+  stars: finish, grab the golden star, beat the clock.
+- **Flying:** with propellers on, W/S give more or less power to climb or sink and A/D steer in
+  the air, with a gentle stabiliser keeping the craft level. Point propellers up to build a
+  helicopter.
 - **9 parts:** wooden frame, steel frame, wheel (with real suspension), V8 engine, pig pilot,
   balloon, propeller, soda rocket and TNT. Propellers and rockets can point forward, up,
   backward or down.
@@ -34,6 +39,8 @@ npm test         # drives every level's hint build to the finish without a brows
 - **Quick building:** click or drag across the grid to lay down a whole row of parts, turn on
   **Mirror** to copy everything to the other side, and use **Inside boxes** to drop the pig,
   engine, TNT or thrusters inside a wooden or steel frame (the box protects what's inside).
+- **Brackets:** rockets, engines, TNT, propellers and balloons are bolted to their neighbours
+  with steel bars and bolt plates (or clamped into their box), so nothing floats.
 - **Axles:** wheels bolt onto whatever box they touch. A wheel beside a box gets a straight axle;
   under or in front of one it hangs from a two-armed fork. Both move with the suspension.
 - **Hint button** in every level that loads a build known to finish (the automated test drives
@@ -52,9 +59,11 @@ npm test         # drives every level's hint build to the finish without a brows
   that cast dappled shadows, rocks, dust, smoke and fire particles.
 - Smooth motion: physics runs at 120 steps a second and every frame blends between steps, so
   movement glides on 60, 90, 120 and 144 Hz screens alike. Steering and throttle ease in and out.
-- Quality presets (Low, Medium, High, Ultra). The game picks one from your graphics chip, steps
-  down once if the first drive stutters, and trims the resolution a little on the fly if a scene
-  gets heavy. Change it any time in **Graphics & sound**.
+- Aims for 40+ frames per second: the resolution trims itself on the fly when a scene gets heavy,
+  and if that isn't enough the game steps its quality preset (Low, Medium, High, Ultra) down. Pick
+  a preset yourself any time in **Graphics & sound** (turn on the frame counter there too).
+- A soft, realistic sun: the sky is drawn at the same brightness it lights the world with, so
+  looking towards the sun no longer floods the screen white.
 
 ### Ray tracing
 
@@ -90,6 +99,8 @@ game at 60 frames per second needs dedicated ray-tracing hardware that browsers 
 | `Shift` | brake |
 | `Space` | fire soda rockets (hold) |
 | `F` | propellers on / off |
+| `W` `S` while flying | more or less propeller power (climb / sink) |
+| `A` `D` while flying | steer in the air |
 | `B` | pop a balloon |
 | `T` | detonate TNT |
 | `C` | chase camera or classic side view |

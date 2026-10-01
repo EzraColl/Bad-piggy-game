@@ -452,14 +452,24 @@ export class Contraption {
       }
     }
 
+    // flying: with propellers running, A/D yaw the craft and a gentle stabiliser keeps it level
+    if (this.fansOn) this._flightAssist(dt, input, bodyGround);
+
     // thrusters, balloons
     const ceilingY = ctx.balloonCeilingY;
+    // W/S throttle the propellers up and down, which is how a propeller craft climbs and descends
+    const fanPower = 1 + 0.45 * input.throttle;
     for (const p of this.parts) {
       if (!p.alive) continue;
       if (p.type === 'fan') {
         if (this.fansOn) {
-          p.spin += dt * 55;
-          this._thrust(p, PARTS.fan.thrust * dt);
+          p.spin += dt * 55 * fanPower;
+          this._thrust(p, PARTS.fan.thrust * fanPower * dt);
+          // a spinning propeller also drags through the air, which keeps propeller craft at sane speeds
+          const pos = this.partWorldPosition(p, _v1);
+          const vel = p.body.rb.velocityAtPoint(toV(pos));
+          const c = 7 * dt;
+          p.body.rb.applyImpulseAtPoint({ x: -vel.x * c, y: -vel.y * c, z: -vel.z * c }, toV(pos), true);
         } else {
           p.spin += dt * 1.5; // idles in the breeze
         }
@@ -483,6 +493,33 @@ export class Contraption {
       } else if (p.type === 'engine') {
         p.spin += dt * (8 + Math.abs(input.throttle) * 40);
       }
+    }
+  }
+
+  _flightAssist(dt, input, bodyGround) {
+    for (const rec of this.bodies) {
+      let fans = 0;
+      for (const p of rec.parts) if (p.alive && p.type === 'fan' && !p.broken) fans++;
+      if (!fans) continue;
+      const g = bodyGround.get(rec);
+      if (g && g.grounded > 0 && rec.engines > 0) continue; // on the ground the wheels steer
+      const rb = rec.rb;
+      const r = rb.rotation();
+      _q1.set(r.x, r.y, r.z, r.w);
+      const up = _v2.copy(Y_AXIS).applyQuaternion(_q1);
+      const av = rb.angvel();
+      const inertia = rec.mass * 1.2 + 8;
+      // yaw towards the steering target
+      const yaw = av.x * up.x + av.y * up.y + av.z * up.z;
+      const target = -input.steer * 1.3;
+      const ty = Math.max(-1, Math.min(1, (target - yaw) * 0.8)) * 3.5 * inertia * dt;
+      // roll/pitch back towards level, with damping so it doesn't wobble
+      const tilt = _v3.crossVectors(up, Y_AXIS); // axis * sin(angle)
+      const k = 6 * inertia * dt;
+      const d = 2.5 * inertia * dt;
+      const ax = tilt.x * k - (av.x - up.x * yaw) * d;
+      const az = tilt.z * k - (av.z - up.z * yaw) * d;
+      rb.applyTorqueImpulse({ x: up.x * ty + ax, y: up.y * ty + tilt.y * k, z: up.z * ty + az }, true);
     }
   }
 
