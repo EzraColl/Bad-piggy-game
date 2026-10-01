@@ -58,18 +58,22 @@
             </div>
           </div>
           <div class="panel tools">
+            <button id="btn-turn-left" class="btn icon" aria-label="Turn view left" title="Turn view (Q)">⟲</button>
+            <button id="btn-turn-right" class="btn icon" aria-label="Turn view right" title="Turn view (E)">⟳</button>
             <button id="btn-hint" class="btn" title="Load a build that works">Hint</button>
             <button id="btn-undo" class="btn" title="Undo (Ctrl+Z)">Undo</button>
             <button id="btn-clear" class="btn" title="Remove every part">Clear</button>
             <button id="btn-build-settings" class="btn icon" aria-label="Settings" title="Settings">⚙</button>
           </div>
         </header>
-        <p id="build-tip" class="tip">Click the blue grid to place a part · Right-click removes · Drag to look around · <kbd>R</kbd> turns rockets and propellers</p>
+        <p id="build-tip" class="tip">Click or drag on the grid to place · Right-click removes · Drag empty space to look around · <kbd>Q</kbd><kbd>E</kbd> turn the view</p>
         <footer class="tray">
           <div id="palette" class="palette"></div>
           <div class="tray-actions">
+            <button id="btn-inside" class="btn tool" title="Put parts inside boxes (I)" aria-pressed="false"><b>I</b><span>Inside boxes</span></button>
+            <button id="btn-mirror" class="btn tool" title="Mirror to the other side (M)" aria-pressed="false"><b>M</b><span>Mirror</span></button>
             <button id="btn-rotate" class="btn tool" title="Turn thrust direction (R)"><b>R</b><span id="rotate-label">Forward</span></button>
-            <button id="btn-eraser" class="btn tool" title="Eraser (E)"><b>E</b><span>Eraser</span></button>
+            <button id="btn-eraser" class="btn tool" title="Eraser (X)" aria-pressed="false"><b>X</b><span>Eraser</span></button>
             <button id="btn-go" class="btn go huge" title="Start (Enter)">GO</button>
           </div>
         </footer>
@@ -164,11 +168,15 @@
             <div>
               <h3>Building</h3>
               <dl>
-                <dt>Click</dt><dd>place the selected part</dd>
+                <dt>Click / drag</dt><dd>place parts (drag paints a whole row)</dd>
                 <dt>Right-click</dt><dd>remove a part</dd>
-                <dt>Drag / wheel</dt><dd>look around / zoom</dd>
+                <dt>Drag empty space</dt><dd>look around (wheel zooms)</dd>
+                <dt><kbd>Q</kbd> <kbd>E</kbd></dt><dd>turn the view</dd>
                 <dt><kbd>1</kbd>–<kbd>9</kbd></dt><dd>pick a part</dd>
+                <dt><kbd>I</kbd></dt><dd>inside boxes: drop the pig, engine or TNT into a frame</dd>
+                <dt><kbd>M</kbd></dt><dd>mirror: copy to the other side</dd>
                 <dt><kbd>R</kbd></dt><dd>turn rockets and propellers</dd>
+                <dt><kbd>X</kbd></dt><dd>eraser (drag to erase lots)</dd>
                 <dt><kbd>Ctrl</kbd>+<kbd>Z</kbd></dt><dd>undo</dd>
                 <dt><kbd>Enter</kbd></dt><dd>GO</dd>
               </dl>
@@ -189,7 +197,7 @@
               </dl>
             </div>
           </div>
-          <p class="note">Wheels only drive when they are bolted to the same chunk as an engine. Parts that take a big hit snap off.</p>
+          <p class="note">Wheels bolt on with an axle to whatever box they touch, and only drive when that chunk has an engine. Parts inside a box are protected by it. Parts that take a big hit snap off.</p>
           <div class="row end"><button id="help-close" class="btn go">Got it</button></div>
         </div>
       </div>

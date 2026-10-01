@@ -10,6 +10,8 @@ const cells = [
   ['wood', 1, 0, 2], ['wood', 2, 0, 2], ['pig', 3, 0, 2], ['engine', 4, 0, 2],
   ['tnt', 2, 1, 2], ['wood', 3, 1, 2], ['balloon', 3, 2, 2], ['fan', 4, 1, 2, 1], ['rocket', 1, 1, 2, 0],
   ['metal', 5, 0, 2], ['wheel', 5, 0, 1], ['tnt', 6, 0, 2],
+  // a box with TNT inside it and a box with the engine inside
+  ['wood', 2, 1, 1], ['tnt', 2, 1, 1], ['wood', 4, 0, 1], ['engine', 4, 0, 1],
 ];
 for (let run = 0; run < 3; run++) {
   const sim = new Simulation(RAPIER, level, { dims: level.grid, cells });

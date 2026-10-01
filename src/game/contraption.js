@@ -5,7 +5,7 @@
 // When parts break off or get blown up, the chassis is split into new bodies along the gaps.
 
 import { Vector3, Quaternion } from 'three';
-import { PARTS, DIRS, WHEEL_RADIUS, WHEEL_HALF_WIDTH, WHEEL_DROP, cellLocal, cellKey, isStructural } from './parts.js';
+import { PARTS, DIRS, WHEEL_RADIUS, WHEEL_HALF_WIDTH, WHEEL_DROP, WHEEL_MOUNTS, cellLocal, cellKey, isStructural, isFrame } from './parts.js';
 import { G, groups } from './physics.js';
 
 const _v1 = new Vector3();
@@ -18,6 +18,7 @@ const Y_AXIS = new Vector3(0, 1, 0);
 const WHEEL_ROT = { x: Math.SQRT1_2, y: 0, z: 0, w: Math.SQRT1_2 }; // Rapier cylinders point along Y
 
 const NEIGHBOURS = [[0, 1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, -1, 0]];
+const SAME_AND_NEIGHBOURS = [[0, 0, 0], ...NEIGHBOURS];
 
 export const ENGINE = {
   torquePerWheel: 34, // N·m for one engine, scaled by engines^0.8
@@ -72,7 +73,16 @@ export class Contraption {
       if (type === 'pig') this.pig = part;
       this.parts.push(part);
     }
-    this.byKey = new Map(this.parts.map((p) => [p.key, p]));
+    // a cell can hold a frame plus one part riding inside it
+    this.byKey = new Map();
+    for (const p of this.parts) {
+      const list = this.byKey.get(p.key) ?? [];
+      list.push(p);
+      this.byKey.set(p.key, list);
+    }
+    for (const p of this.parts) {
+      p.inside = !isFrame(p.type) && this.byKey.get(p.key).some((q) => isFrame(q.type));
+    }
 
     // 1. structural parts -> compound bodies
     const structural = this.parts.filter((p) => isStructural(p.type));
@@ -102,10 +112,13 @@ export class Contraption {
       while (stack.length) {
         const p = stack.pop();
         comp.push(p);
-        if (p.broken) continue;
-        for (const [dx, dy, dz] of NEIGHBOURS) {
-          const q = this.byKey.get(cellKey(p.cell[0] + dx, p.cell[1] + dy, p.cell[2] + dz));
-          if (q && set.has(q) && !seen.has(q) && !q.broken && q.alive) {
+        // broken parts only stay with whatever shares their cell (a box and what is inside it)
+        const dirs = p.broken ? [[0, 0, 0]] : SAME_AND_NEIGHBOURS;
+        for (const [dx, dy, dz] of dirs) {
+          const list = this.byKey.get(cellKey(p.cell[0] + dx, p.cell[1] + dy, p.cell[2] + dz));
+          if (!list) continue;
+          for (const q of list) {
+            if (q === p || !set.has(q) || seen.has(q) || !q.alive || q.broken !== p.broken) continue;
             seen.add(q);
             stack.push(q);
           }
@@ -114,6 +127,11 @@ export class Contraption {
       comps.push(comp);
     }
     return comps;
+  }
+
+  // Frame and inner part sharing a cell.
+  cellMates(part) {
+    return (this.byKey.get(part.key) ?? []).filter((q) => q !== part && q.alive);
   }
 
   _createBody(pos, quat, linvel, angvel) {
@@ -239,10 +257,15 @@ export class Contraption {
   }
 
   _findWheelParent(w) {
-    for (const [dx, dy, dz] of NEIGHBOURS) {
-      const q = this.byKey.get(cellKey(w.cell[0] + dx, w.cell[1] + dy, w.cell[2] + dz));
-      if (q && q.alive && !q.broken && isStructural(q.type)) return q;
+    for (const d of WHEEL_MOUNTS) {
+      const list = this.byKey.get(cellKey(w.cell[0] + d[0], w.cell[1] + d[1], w.cell[2] + d[2]));
+      if (!list) continue;
+      const ok = list.filter((q) => q.alive && !q.broken && isStructural(q.type));
+      if (!ok.length) continue;
+      w.mount = d;
+      return ok.find((q) => isFrame(q.type)) ?? ok[0];
     }
+    w.mount = null;
     return null;
   }
 
@@ -321,6 +344,18 @@ export class Contraption {
     }
     const r = part.body.rb.rotation();
     return target.set(r.x, r.y, r.z, r.w).multiply(part.localQuat);
+  }
+
+  // Same as partWorldPosition/Quaternion, but read through an interpolating pose function
+  // (Simulation.pose) so drawing is smooth between physics steps.
+  partRenderTransform(part, pose, outP, outQ) {
+    if (part.type === 'wheel') {
+      pose(part.wheelBody, outP, outQ);
+      return;
+    }
+    pose(part.body.rb, _v3, _q1);
+    outP.copy(part.local).applyQuaternion(_q1).add(_v3);
+    outQ.copy(_q1).multiply(part.localQuat);
   }
 
   bodyQuaternion(rec, target = new Quaternion()) {
@@ -494,7 +529,10 @@ export class Contraption {
       this._tuneSuspension();
       return;
     }
+    const mates = this.cellMates(part);
+    if (part.inside && mates.some((q) => isFrame(q.type) && !q.broken)) return; // the box protects it
     part.broken = true;
+    for (const q of mates) q.broken = true; // a box takes whatever is inside along with it
     this.events.push({ type: 'break', part, force, pos: this.partWorldPosition(part) });
     this._split(part.body);
   }

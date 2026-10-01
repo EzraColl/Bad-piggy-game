@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { woodTextures, metalTextures, tireTextures, tntTexture, crateTextures } from './textures.js';
+import { woodTextures, metalTextures, tireTextures, tntTexture, crateTextures, pigSkinTexture } from './textures.js';
 import { WHEEL_RADIUS, WHEEL_HALF_WIDTH, WHEEL_DROP } from '../game/parts.js';
 
 let M = null;
@@ -25,7 +25,11 @@ export function partMaterials() {
     paintYellow: new THREE.MeshPhysicalMaterial({ color: 0xf0b21d, roughness: 0.35, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.08 }),
     rubber: new THREE.MeshStandardMaterial({ color: 0xffffff, map: tire.map, normalMap: tire.normalMap, normalScale: new THREE.Vector2(1.2, 1.2), roughness: 0.92 }),
     rubberPlain: new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.85 }),
-    pigSkin: new THREE.MeshPhysicalMaterial({ color: 0x5fae2e, roughness: 0.5, sheen: 0.3, sheenColor: new THREE.Color(0xb8f090), sheenRoughness: 0.6, clearcoat: 0.12, clearcoatRoughness: 0.5 }),
+    pigBody: new THREE.MeshPhysicalMaterial({ map: pigSkinTexture(), roughness: 0.52, sheen: 0.35, sheenColor: new THREE.Color(0xc8f5a0), sheenRoughness: 0.5, clearcoat: 0.18, clearcoatRoughness: 0.45 }),
+    pigInner: new THREE.MeshStandardMaterial({ color: 0x3f7a22, roughness: 0.7 }),
+    pigNostril: new THREE.MeshStandardMaterial({ color: 0x1c3510, roughness: 0.85 }),
+    glint: new THREE.MeshBasicMaterial({ color: 0xffffff }),
+    pigSkin: new THREE.MeshPhysicalMaterial({ color: 0x3f8f24, roughness: 0.5, sheen: 0.3, sheenColor: new THREE.Color(0xb8f090), sheenRoughness: 0.6, clearcoat: 0.12, clearcoatRoughness: 0.5 }),
     pigSnout: new THREE.MeshPhysicalMaterial({ color: 0x7cc84a, roughness: 0.5, sheen: 0.5, sheenColor: new THREE.Color(0xeaffd8), clearcoat: 0.2 }),
     pigDark: new THREE.MeshStandardMaterial({ color: 0x2f5a1c, roughness: 0.6 }),
     eyeWhite: new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.15, clearcoat: 1, clearcoatRoughness: 0.02 }),
@@ -299,74 +303,111 @@ function buildEngine() {
 export function buildPigMesh() {
   const mats = partMaterials();
   const g = new THREE.Group();
-  const body = mesh(new THREE.SphereGeometry(0.4, 48, 32), mats.pigSkin);
-  body.scale.set(1, 0.93, 1);
+  // round body, a little wider than tall
+  const body = mesh(new THREE.SphereGeometry(0.4, 64, 40), mats.pigBody);
+  body.scale.set(1, 0.92, 1.04);
   g.add(body);
-  // snout
-  const snoutGeo = new THREE.CylinderGeometry(0.15, 0.165, 0.13, 36);
+
+  // big oval snout with a soft rounded rim
+  const prof = [[0, -0.075], [0.128, -0.075], [0.156, -0.06], [0.17, -0.025], [0.17, 0.025], [0.156, 0.06], [0.128, 0.075], [0, 0.075]]
+    .map(([r, y]) => new THREE.Vector2(r, y));
+  const snoutGeo = new THREE.LatheGeometry(prof, 48);
   snoutGeo.rotateZ(-Math.PI / 2);
   const snout = mesh(snoutGeo, mats.pigSnout);
-  snout.position.set(0.39, -0.04, 0);
+  snout.scale.set(1, 0.84, 1.14);
+  snout.position.set(0.385, -0.035, 0);
   g.add(snout);
-  const snoutFace = mesh(new THREE.SphereGeometry(0.15, 32, 16), mats.pigSnout);
-  snoutFace.scale.set(0.25, 1, 1);
-  snoutFace.position.set(0.455, -0.04, 0);
-  g.add(snoutFace);
+
   for (const s of [-1, 1]) {
-    const nostril = mesh(new THREE.SphereGeometry(0.034, 16, 12), mats.pigDark);
-    nostril.scale.set(0.5, 1.25, 0.85);
-    nostril.position.set(0.487, -0.035, s * 0.058);
+    // nostrils: dark ovals sunk into the snout
+    const nostril = mesh(new THREE.SphereGeometry(0.036, 20, 14), mats.pigNostril);
+    nostril.scale.set(0.45, 1.3, 0.8);
+    nostril.position.set(0.452, -0.03, s * 0.062);
     g.add(nostril);
-    // eyes
-    const eye = mesh(new THREE.SphereGeometry(0.105, 32, 20), mats.eyeWhite);
-    eye.position.set(0.28, 0.14, s * 0.155);
-    g.add(eye);
-    const pupil = mesh(new THREE.SphereGeometry(0.045, 20, 14), mats.pupil);
-    pupil.position.set(0.37, 0.15, s * 0.14);
-    g.add(pupil);
-    // eyebrows
-    const brow = mesh(new RoundedBoxGeometry(0.03, 0.035, 0.14, 2, 0.012), mats.pigDark);
-    brow.position.set(0.33, 0.265, s * 0.15);
-    brow.rotation.x = s * -0.25;
+
+    // eyes with pupils and a catch-light, plus eyelids that blink
+    const eyeGroup = new THREE.Group();
+    eyeGroup.position.set(0.27, 0.13, s * 0.142);
+    eyeGroup.rotation.y = -s * 0.25;
+    const eye = mesh(new THREE.SphereGeometry(0.106, 32, 24), mats.eyeWhite);
+    eyeGroup.add(eye);
+    // pupil: a flattened lens sitting on the eyeball's surface
+    const pupil = mesh(new THREE.SphereGeometry(0.046, 24, 16), mats.pupil);
+    pupil.position.set(0.097, 0.006, 0);
+    pupil.scale.set(0.32, 1, 1);
+    eyeGroup.add(pupil);
+    const glint = new THREE.Mesh(new THREE.SphereGeometry(0.013, 10, 8), mats.glint);
+    glint.position.set(0.108, 0.026, -s * 0.014);
+    eyeGroup.add(glint);
+    for (const [name, top] of [['lidTop', true], ['lidBot', false]]) {
+      const pivot = new THREE.Group();
+      pivot.name = name;
+      const lid = mesh(new THREE.SphereGeometry(0.113, 28, 12, 0, Math.PI * 2, top ? 0 : Math.PI / 2, Math.PI / 2), mats.pigSkin);
+      pivot.add(lid);
+      pivot.rotation.z = top ? 0.95 : -1.25;
+      eyeGroup.add(pivot);
+    }
+    g.add(eyeGroup);
+
+    // cheeky eyebrows
+    const brow = mesh(new RoundedBoxGeometry(0.034, 0.042, 0.15, 2, 0.015), mats.pigDark);
+    brow.position.set(0.31, 0.265, s * 0.15);
+    brow.rotation.set(s * -0.32, 0, -0.35);
     g.add(brow);
-    // ears
-    const earGeo = new THREE.ConeGeometry(0.075, 0.14, 20);
-    const ear = mesh(earGeo, mats.pigSkin);
-    ear.position.set(0.02, 0.35, s * 0.21);
-    ear.rotation.x = s * 0.55;
-    ear.rotation.z = -0.25;
+
+    // leaf-shaped ears with a darker inside
+    const ear = new THREE.Group();
+    ear.position.set(-0.02, 0.33, s * 0.23);
+    ear.rotation.set(s * 0.55, 0, -0.35);
+    const outer = mesh(new THREE.SphereGeometry(0.1, 24, 16), mats.pigSkin);
+    outer.scale.set(0.42, 1, 0.8);
+    outer.position.y = 0.05;
+    ear.add(outer);
+    const inner = mesh(new THREE.SphereGeometry(0.075, 20, 12), mats.pigInner);
+    inner.scale.set(0.25, 0.85, 0.6);
+    inner.position.set(0.028, 0.045, 0);
+    ear.add(inner);
     g.add(ear);
-    // cheek bumps
-    const cheek = mesh(new THREE.SphereGeometry(0.1, 20, 14), mats.pigSkin);
-    cheek.position.set(0.26, -0.13, s * 0.22);
+
+    // rosy cheeks
+    const cheek = mesh(new THREE.SphereGeometry(0.095, 24, 16), mats.pigSnout);
+    cheek.position.set(0.25, -0.11, s * 0.215);
+    cheek.scale.set(0.8, 0.8, 1);
     g.add(cheek);
   }
-  // aviator goggles pushed up on the forehead, held by a leather strap
-  const strapGeo = new THREE.TorusGeometry(0.405, 0.024, 10, 64);
-  strapGeo.rotateX(Math.PI / 2);
-  const strap = mesh(strapGeo, mats.leather);
-  strap.rotation.z = -0.5;
-  strap.position.set(0.03, 0.05, 0);
-  strap.scale.set(1, 1, 1.02);
-  g.add(strap);
-  for (const s of [-1, 1]) {
-    const cupGeo = new THREE.CylinderGeometry(0.075, 0.085, 0.07, 24);
-    cupGeo.rotateZ(Math.PI / 2);
-    const cup = mesh(cupGeo, mats.brass);
-    cup.position.set(0.3, 0.27, s * 0.095);
-    cup.rotation.z = 0.95;
-    g.add(cup);
-    const lens = mesh(new THREE.CylinderGeometry(0.062, 0.062, 0.02, 24), mats.glass);
-    lens.rotation.z = Math.PI / 2 + 0.95;
-    lens.position.set(0.328, 0.29, s * 0.095);
-    lens.castShadow = false;
-    g.add(lens);
-  }
-  const tail = mesh(new THREE.TorusGeometry(0.05, 0.015, 8, 20, Math.PI * 1.6), mats.pigSkin);
-  tail.position.set(-0.41, 0.02, 0);
+
+  // a cheeky grin under the snout
+  const smile = mesh(new THREE.TorusGeometry(0.085, 0.012, 8, 28, Math.PI * 0.62), mats.pigNostril);
+  smile.rotation.set(0, Math.PI / 2, -Math.PI * 0.81);
+  smile.position.set(0.37, -0.115, 0);
+  g.add(smile);
+
+  // curly tail
+  const tail = mesh(new THREE.TorusGeometry(0.05, 0.016, 8, 24, Math.PI * 1.7), mats.pigSkin);
+  tail.position.set(-0.41, 0.03, 0);
   tail.rotation.y = Math.PI / 2;
   g.add(tail);
+  g.userData.isPig = true;
   return g;
+}
+
+// Blinks every few seconds. `phase` keeps several pigs from blinking in sync.
+export function animatePig(root, time, phase = 0) {
+  let lids = root.userData.lids;
+  if (!lids) {
+    lids = [];
+    root.traverse((o) => {
+      if (o.name === 'lidTop' || o.name === 'lidBot') lids.push(o);
+    });
+    root.userData.lids = lids;
+  }
+  const period = 3.4;
+  const t = (time + phase) % period;
+  const close = t < 0.16 ? Math.sin((t / 0.16) * Math.PI) : 0;
+  for (const l of lids) {
+    const open = l.name === 'lidTop' ? 0.95 : -1.25;
+    l.rotation.z = open * (1 - close);
+  }
 }
 
 function buildPig() {
@@ -562,6 +603,9 @@ function buildTnt() {
   return g;
 }
 
+// How much smaller a part is drawn when it rides inside a box, so it fits between the beams.
+export const INSIDE_SCALE = { pig: 0.84, engine: 0.8, tnt: 0.85, fan: 0.8, rocket: 0.9, balloon: 0.9 };
+
 const BUILDERS = {
   wood: buildWood,
   metal: buildMetal,
@@ -585,7 +629,7 @@ export function createPartMesh(type) {
 }
 
 // Renders a small picture of every part for the build palette.
-export function renderThumbnails(types, size = 112) {
+export function renderThumbnails(types, size = 112, camPos = [1.6, 1.25, 2.4]) {
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const r = new THREE.WebGLRenderer({ canvas: c, antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -608,7 +652,7 @@ export function renderThumbnails(types, size = 112) {
   key.position.set(2, 3, 2.5);
   scene.add(key);
   const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
-  cam.position.set(1.6, 1.25, 2.4);
+  cam.position.set(camPos[0], camPos[1], camPos[2]);
   cam.lookAt(0, -0.02, 0);
   const out = {};
   for (const type of types) {

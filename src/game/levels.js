@@ -23,7 +23,7 @@ export const THEMES = {
     snowLine: Infinity, fog: 0.0032, trees: 0.8, flowers: 0.6,
   },
   morning: {
-    sun: { elevation: 22, azimuth: 150 },
+    sun: { elevation: 27, azimuth: 195 },
     turbidity: 2.4, rayleigh: 1.1, mie: 0.003, exposure: 1.0,
     grass: [0.16, 0.33, 0.10], grass2: [0.26, 0.42, 0.14],
     dirt: [0.44, 0.37, 0.29], rock: [0.45, 0.44, 0.42],

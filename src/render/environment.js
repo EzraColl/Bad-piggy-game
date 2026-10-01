@@ -18,6 +18,7 @@ export class WorldEnvironment {
     this.sky = new Sky();
     this.sky.scale.setScalar(4500);
     this.sky.frustumCulled = false;
+    this.sky.userData.skyDome = true;
     const u = this.sky.material.uniforms;
     u.turbidity.value = theme.turbidity;
     u.rayleigh.value = theme.rayleigh;

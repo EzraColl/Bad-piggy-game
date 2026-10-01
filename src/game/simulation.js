@@ -2,7 +2,7 @@
 // The renderer and UI only read from this and push input into it, so tools/simulate.mjs can
 // run exactly the same game without a browser.
 
-import { Vector3 } from 'three';
+import { Vector3, Quaternion } from 'three';
 import { createTerrain } from './terrain.js';
 import { LevelPhysics } from './physics.js';
 import { Contraption } from './contraption.js';
@@ -123,10 +123,50 @@ export class Simulation {
     let steps = 0;
     while (this.accum >= STEP) {
       this.accum -= STEP;
+      this._capturePoses();
       this._step(STEP);
       steps++;
     }
+    // how far we are between the last two physics states, for smooth drawing
+    this.alpha = this.accum / STEP;
     return steps;
+  }
+
+  // Remember where every body was before a step so the renderer can blend between steps.
+  // Physics runs at 120 Hz while screens run at 60, 90, 120 or 144 Hz: without blending,
+  // some frames get two steps and some one, which looks like stutter.
+  _capturePoses() {
+    if (!this.prevPoses) {
+      this.prevPoses = new Map();
+      this.poseStamp = 0;
+    }
+    this.poseStamp++;
+    const stamp = this.poseStamp;
+    const map = this.prevPoses;
+    this.phys.world.forEachRigidBody((rb) => {
+      let e = map.get(rb.handle);
+      if (!e) {
+        e = { p: new Vector3(), q: new Quaternion(), stamp: 0 };
+        map.set(rb.handle, e);
+      }
+      const t = rb.translation();
+      const r = rb.rotation();
+      e.p.set(t.x, t.y, t.z);
+      e.q.set(r.x, r.y, r.z, r.w);
+      e.stamp = stamp;
+    });
+  }
+
+  // Interpolated pose of a rigid body for drawing.
+  pose(rb, outP, outQ) {
+    const t = rb.translation();
+    const r = rb.rotation();
+    outP.set(t.x, t.y, t.z);
+    outQ?.set(r.x, r.y, r.z, r.w);
+    const e = this.prevPoses?.get(rb.handle);
+    if (!e || e.stamp !== this.poseStamp || this.alpha === undefined) return;
+    outP.lerpVectors(e.p, outP, this.alpha);
+    if (outQ) outQ.slerpQuaternions(e.q, outQ, this.alpha);
   }
 
   _step(dt) {

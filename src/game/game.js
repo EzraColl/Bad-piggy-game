@@ -24,6 +24,7 @@ const KEYMAP = {
 };
 
 const _v = new THREE.Vector3();
+const _p2 = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 
 export class Game {
@@ -88,6 +89,7 @@ export class Game {
     effects.setPixelScale(this.gfx.renderer.domElement.height, this.camera.fov);
     // compile shaders now rather than stuttering on the first frame
     this.gfx.renderer.compile(this.scene, this.camera);
+    this.gfx.resetAdapt();
     onProgress?.(1, '');
     return this.world;
   }
@@ -169,10 +171,13 @@ export class Game {
     const w = this.world;
     this._endRun();
     const bp = { dims: w.level.grid, cells };
-    this.sim = new Simulation(this.R, w.level, bp, w.terrain);
-    w.levelView.setPhysics(this.sim.phys);
+    const sim = new Simulation(this.R, w.level, bp, w.terrain);
+    this.sim = sim;
+    const pose = (rb, p, q) => sim.pose(rb, p, q); // smooth, interpolated transforms for drawing
+    w.levelView.setPhysics(sim.phys, pose);
     w.effects.clear();
-    this.vehicleView = new VehicleView(this.scene, this.sim.car, w.effects, w.terrain, w.theme);
+    this.vehicleView = new VehicleView(this.scene, sim.car, w.effects, w.terrain, w.theme, pose);
+    this.pose = pose;
     const pig = this.sim.car.pigPosition();
     this.rig.reset(pig, 0, Math.max(...w.level.grid));
     this.resultShown = false;
@@ -184,6 +189,8 @@ export class Game {
       ui.toast('Add the pig first. Nobody to drive!');
       return;
     }
+    const loose = w.builder.looseParts();
+    if (loose > 0) ui.toast(`${loose} part${loose > 1 ? 's are' : ' is'} not attached to the pig's ride and will fall off`);
     const cells = w.builder.cellsArray();
     this.store.data.builds[w.level.id] = cells;
     this.store.save();
@@ -330,8 +337,14 @@ export class Game {
         if (list[n]) b.select(list[n]);
       } else if (e.code === 'KeyR') {
         ui.toast('Thrust: ' + b.rotate());
-      } else if (e.code === 'KeyE' || e.code === 'KeyX') {
+      } else if (e.code === 'KeyX' || e.code === 'Delete') {
         b.setEraser(!b.eraser);
+      } else if (e.code === 'KeyI') {
+        ui.toggleInside(this);
+      } else if (e.code === 'KeyM') {
+        ui.toggleMirror(this);
+      } else if (e.code === 'KeyQ' || e.code === 'KeyE') {
+        b.turn(e.code === 'KeyQ' ? -1 : 1);
       } else if (e.code === 'KeyZ' && (e.ctrlKey || e.metaKey)) {
         b.undo();
       } else if (e.code === 'Enter' || e.code === 'Space') {
@@ -352,11 +365,14 @@ export class Game {
     }
   }
 
-  _input() {
+  // Keys are on/off, so ease the steering and throttle in and out like a real wheel and pedal.
+  _input(dt) {
     const k = this.keys;
     const input = this.sim.input;
-    input.throttle = (k.has('forward') ? 1 : 0) - (k.has('back') ? 1 : 0);
-    input.steer = (k.has('right') ? 1 : 0) - (k.has('left') ? 1 : 0);
+    const throttle = (k.has('forward') ? 1 : 0) - (k.has('back') ? 1 : 0);
+    const steer = (k.has('right') ? 1 : 0) - (k.has('left') ? 1 : 0);
+    input.throttle = approach(input.throttle, throttle, dt * (throttle === 0 || Math.sign(throttle) !== Math.sign(input.throttle) ? 9 : 4.5));
+    input.steer = approach(input.steer, steer, dt * (steer === 0 ? 7 : 4));
     input.brake = k.has('brake');
     input.rocket = k.has('rocket');
   }
@@ -384,7 +400,7 @@ export class Game {
         this.pilot.update();
         if (this.sim.state !== 'running' || this.sim.time > 40) this._startDemo();
       } else if (this.state === 'play') {
-        this._input();
+        this._input(dt);
       } else {
         this.sim.input.throttle = 0;
         this.sim.input.steer = 0;
@@ -403,24 +419,27 @@ export class Game {
     }
 
     if (this.state === 'build') {
-      w.builder.update();
+      w.builder.update(dt);
       w.env.follow(w.builder.centre);
       this.gfx.setProbeFocus(w.builder.centre, [w.builder.group]);
     }
 
     w.levelView.update(dt, this.camera);
     w.effects.update(dt);
+    this.gfx.adapt(dt);
     this.gfx.render();
   }
 
   _followCamera(dt) {
     const car = this.sim.car;
     const rec = car.pig.body;
-    const t = rec.rb.worldCom();
-    const focus = _v.set(t.x, t.y, t.z);
+    // follow the pig's smoothed position so the camera glides instead of ticking with physics steps
+    const focus = _v;
+    car.partRenderTransform(car.pig, this.pose, focus, _q);
+    this.pose(rec.rb, _p2, _q);
     const lv = rec.rb.linvel();
     const vel = new THREE.Vector3(lv.x, lv.y, lv.z);
-    const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(car.bodyQuaternion(rec, _q));
+    const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(_q);
     if (this.demo) {
       this.rig.yawOffset = Math.sin(this.time * 0.12) * 0.9 + 0.5;
     }
@@ -564,6 +583,11 @@ export class Game {
       this.autoQuality.done = true;
     }
   }
+}
+
+function approach(value, target, maxStep) {
+  if (value < target) return Math.min(target, value + maxStep);
+  return Math.max(target, value - maxStep);
 }
 
 function tick() {

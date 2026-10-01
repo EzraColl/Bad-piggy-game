@@ -392,3 +392,51 @@ export function needleCardTexture() {
     return toTexture(c);
   });
 }
+
+// Pig skin wrapped around a sphere: lighter belly and face, a few darker freckle spots on the back.
+export function pigSkinTexture() {
+  return memo('pigskin', () => {
+    const w = 512;
+    const h = 256;
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext('2d');
+    const n = createNoise2D(61);
+    const img = ctx.createImageData(w, h);
+    const d = img.data;
+    const rand = mulberry32(62);
+    const spots = [];
+    for (let i = 0; i < 9; i++) {
+      // keep spots on the back half (u near 0 or 1) and upper body
+      const u = (rand() < 0.5 ? rand() * 0.22 : 0.78 + rand() * 0.22);
+      spots.push([u, 0.12 + rand() * 0.45, 0.025 + rand() * 0.04]);
+    }
+    for (let y = 0; y < h; y++) {
+      const v = y / h; // 0 top .. 1 bottom
+      for (let x = 0; x < w; x++) {
+        const u = x / w; // 0.5 faces forward (+X)
+        const front = Math.cos((u - 0.5) * Math.PI * 2) * 0.5 + 0.5;
+        const belly = Math.max(0, v - 0.45) / 0.55;
+        let light = 0.55 + 0.25 * front * (0.4 + v * 0.6) + 0.35 * belly * belly;
+        let spot = 0;
+        for (const [su, sv, sr] of spots) {
+          const du = Math.min(Math.abs(u - su), 1 - Math.abs(u - su)) * 2;
+          const dist = Math.hypot(du, (v - sv) * 1.1);
+          spot = Math.max(spot, 1 - Math.min(1, dist / sr));
+        }
+        light *= 1 - 0.28 * Math.pow(spot, 0.7);
+        const grain = 0.94 + 0.06 * fbm(n, u * 40, v * 20, 2);
+        light *= grain;
+        const i = (y * w + x) * 4;
+        // green with a slightly warmer, yellower belly
+        d[i] = Math.min(255, (0.33 + 0.18 * belly) * light * 255);
+        d[i + 1] = Math.min(255, 0.78 * light * 255);
+        d[i + 2] = Math.min(255, (0.2 + 0.06 * belly) * light * 255);
+        d[i + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    return toTexture(c);
+  });
+}

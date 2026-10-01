@@ -96,6 +96,19 @@ export function isStructural(type) {
   return type !== 'wheel';
 }
 
+// Frames are boxes: one other part can ride inside each of them.
+export function isFrame(type) {
+  return type === 'wood' || type === 'metal';
+}
+
+export function fitsInside(type) {
+  return type === 'pig' || type === 'engine' || type === 'tnt' || type === 'fan' || type === 'rocket' || type === 'balloon';
+}
+
+// Where a wheel looks for something to bolt its axle to, best first:
+// beside it (a real axle), above it (a fork), in front/behind (a trailing arm), below it.
+export const WHEEL_MOUNTS = [[0, 0, 1], [0, 0, -1], [0, 1, 0], [1, 0, 0], [-1, 0, 0], [0, -1, 0]];
+
 export function cellKey(i, j, k) {
   return `${i},${j},${k}`;
 }

@@ -331,7 +331,7 @@ kbd {
 .part-btn.empty { opacity: 0.4; }
 .part-btn:focus-visible { outline: 3px solid var(--hazard); outline-offset: 1px; }
 .tray-actions { display: flex; gap: 8px; align-items: stretch; padding-top: 4px; }
-.btn.tool { display: grid; place-items: center; gap: 2px; width: 76px; padding: 6px; }
+.btn.tool { display: grid; place-items: center; gap: 2px; width: 80px; padding: 6px; }
 .btn.tool b { font-size: 1.05rem; }
 .btn.tool span { font-size: 0.74rem; color: var(--ink-dim); }
 .btn.tool.on span { color: var(--hazard-ink); }

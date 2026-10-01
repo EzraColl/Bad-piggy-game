@@ -110,11 +110,12 @@ export class LevelView {
     this.time = 0;
   }
 
-  setPhysics(phys) {
+  setPhysics(phys, pose = null) {
     // a fresh physics world was created for a retry: rebuild dynamic props
     for (const m of this.propMeshes.values()) this.group.remove(m);
     this.propMeshes.clear();
     this.phys = phys;
+    this.pose = pose;
     this.buildProps();
     this.star.visible = !!this.level.star;
   }
@@ -287,10 +288,14 @@ export class LevelView {
         continue;
       }
       if (prop.body) {
-        const t = prop.body.translation();
-        const r = prop.body.rotation();
-        mesh.position.set(t.x, t.y, t.z);
-        mesh.quaternion.set(r.x, r.y, r.z, r.w);
+        if (this.pose) {
+          this.pose(prop.body, mesh.position, mesh.quaternion);
+        } else {
+          const t = prop.body.translation();
+          const r = prop.body.rotation();
+          mesh.position.set(t.x, t.y, t.z);
+          mesh.quaternion.set(r.x, r.y, r.z, r.w);
+        }
       }
     }
     if (this.star.visible) {

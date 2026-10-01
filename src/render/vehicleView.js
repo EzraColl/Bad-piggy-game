@@ -1,11 +1,15 @@
 // Draws the player's contraption and keeps every model in sync with the physics.
 
 import * as THREE from 'three';
-import { createPartMesh, buildWheelMesh, buildBalloonMesh, setString, partMaterials } from './partMeshes.js';
+import { createPartMesh, buildWheelMesh, buildBalloonMesh, setString, partMaterials, animatePig, INSIDE_SCALE } from './partMeshes.js';
+import { AxleView } from './axles.js';
 import { WHEEL_RADIUS } from '../game/parts.js';
 
 const _p = new THREE.Vector3();
 const _q = new THREE.Quaternion();
+const _bp = new THREE.Vector3();
+const _bq = new THREE.Quaternion();
+const _cell = new THREE.Vector3();
 const _v = new THREE.Vector3();
 const _w = new THREE.Vector3();
 const X = new THREE.Vector3(1, 0, 0);
@@ -14,9 +18,17 @@ const GRASSY = new THREE.Color(0.42, 0.4, 0.3);
 const SNOW = new THREE.Color(0.95, 0.96, 1.0);
 
 export class VehicleView {
-  constructor(scene, car, effects, terrain, theme) {
+  // pose(rb, outPosition, outQuaternion) gives smoothed body transforms (Simulation.pose)
+  constructor(scene, car, effects, terrain, theme, pose) {
     this.scene = scene;
     this.car = car;
+    this.pose = pose ?? ((rb, p, q) => {
+      const t = rb.translation();
+      const r = rb.rotation();
+      p.set(t.x, t.y, t.z);
+      q?.set(r.x, r.y, r.z, r.w);
+    });
+    this.axles = new Map();
     this.effects = effects;
     this.terrain = terrain;
     this.theme = theme;
@@ -42,6 +54,12 @@ export class VehicleView {
           this.balloons.set(p, { mesh: b, string: str, pos: null, vel: new THREE.Vector3(), phase: Math.random() * 10 });
         }
       }
+      if (p.inside) m.scale.setScalar(INSIDE_SCALE[p.type] ?? 0.8);
+      if (p.type === 'wheel' && p.mount) {
+        const axle = new AxleView(p.mount);
+        this.axles.set(p, axle);
+        this.group.add(axle.group);
+      }
       this.meshes.set(p, m);
       this.group.add(m);
     }
@@ -56,9 +74,10 @@ export class VehicleView {
     const lightPos = new THREE.Vector3();
     for (const [p, m] of this.meshes) {
       if (!p.alive) continue;
-      car.partWorldPosition(p, m.position);
-      car.partWorldQuaternion(p, m.quaternion);
-      if (p.type === 'fan') {
+      car.partRenderTransform(p, this.pose, m.position, m.quaternion);
+      if (p.type === 'pig') {
+        animatePig(m, this.time);
+      } else if (p.type === 'fan') {
         const rotor = m.getObjectByName('rotor');
         if (rotor) rotor.rotation.x = p.spin;
       } else if (p.type === 'engine') {
@@ -92,6 +111,15 @@ export class VehicleView {
       } else if (p.type === 'wheel' && dt > 0) {
         this._wheelDust(p, m);
       }
+    }
+    // axles follow the chassis at one end and the bouncing wheel at the other
+    for (const [w, axle] of this.axles) {
+      const attached = w.alive && w.susJoint && w.parentPart?.alive;
+      axle.group.visible = !!attached;
+      if (!attached) continue;
+      this.pose(w.parentPart.body.rb, _bp, _bq);
+      _cell.copy(w.local).applyQuaternion(_bq).add(_bp);
+      axle.update(_cell, _bq, this.meshes.get(w).position);
     }
     const rl = this.effects.rocketLight;
     if (rocketLight > 0) {
@@ -150,6 +178,8 @@ export class VehicleView {
     const m = this.meshes.get(e.part);
     if (e.type === 'destroy' && m) {
       this.group.remove(m);
+      const ax = this.axles.get(e.part);
+      if (ax) this.group.remove(ax.group);
       const b = this.balloons.get(e.part);
       if (b) {
         this.group.remove(b.mesh, b.string);

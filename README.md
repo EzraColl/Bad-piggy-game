@@ -31,6 +31,11 @@ npm test         # drives every level's hint build to the finish without a brows
   backward or down.
 - **Real physics** (Rapier). Parts snap off in big crashes, TNT blasts things apart and the
   vehicle splits into separate pieces that keep flying.
+- **Quick building:** click or drag across the grid to lay down a whole row of parts, turn on
+  **Mirror** to copy everything to the other side, and use **Inside boxes** to drop the pig,
+  engine, TNT or thrusters inside a wooden or steel frame (the box protects what's inside).
+- **Axles:** wheels bolt onto whatever box they touch. A wheel beside a box gets a straight axle;
+  under or in front of one it hangs from a two-armed fork. Both move with the suspension.
 - **Hint button** in every level that loads a build known to finish (the automated test drives
   each one to the flag).
 - Synthesised sound: V8 rumble, propeller buzz, rocket roar, explosions, balloon pops, oinks.
@@ -45,8 +50,11 @@ npm test         # drives every level's hint build to the finish without a brows
   world around them.
 - Procedural everything: textures, tens of thousands of wind-animated grass tufts, leafy trees
   that cast dappled shadows, rocks, dust, smoke and fire particles.
-- Quality presets (Low, Medium, High, Ultra). The game picks one from your graphics chip and
-  steps down once if the first drive stutters. Change it any time in **Graphics & sound**.
+- Smooth motion: physics runs at 120 steps a second and every frame blends between steps, so
+  movement glides on 60, 90, 120 and 144 Hz screens alike. Steering and throttle ease in and out.
+- Quality presets (Low, Medium, High, Ultra). The game picks one from your graphics chip, steps
+  down once if the first drive stutters, and trims the resolution a little on the fly if a scene
+  gets heavy. Change it any time in **Graphics & sound**.
 
 ### Ray tracing
 
@@ -63,12 +71,15 @@ game at 60 frames per second needs dedicated ray-tracing hardware that browsers 
 
 | Building | |
 | --- | --- |
-| Click | place the selected part |
+| Click / drag on the grid | place parts (dragging paints a row) |
 | Right-click | remove a part |
-| Drag / mouse wheel | look around / zoom |
+| Drag empty space / mouse wheel | look around / zoom |
+| `Q` `E` | turn the view |
 | `1`–`9` | pick a part |
+| `I` | inside boxes: put the pig, engine or TNT inside a frame |
+| `M` | mirror to the other side |
 | `R` | turn rockets and propellers |
-| `E` | eraser |
+| `X` | eraser (drag to erase lots) |
 | `Ctrl` + `Z` | undo |
 | `Enter` | GO |
 

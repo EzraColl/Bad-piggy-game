@@ -72,6 +72,8 @@ export class Graphics {
     this.qualityName = QUALITY[qualityName] ? qualityName : 'high';
     this.quality = QUALITY[this.qualityName];
     this.frame = 0;
+    this.dynScale = 1;
+    this.adaptTimer = -2;
     this.probeTarget = null;
     this.hideForProbe = [];
     this._buildComposer();
@@ -121,7 +123,29 @@ export class Graphics {
   }
 
   pixelRatio() {
-    return Math.min(window.devicePixelRatio || 1, this.quality.maxDpr) * this.quality.scale;
+    return Math.min(window.devicePixelRatio || 1, this.quality.maxDpr) * this.quality.scale * this.dynScale;
+  }
+
+  // Dynamic resolution: when frames take too long, render a few percent fewer pixels (down to 60%),
+  // and climb back once there is headroom. Keeps motion smooth on slower laptops.
+  adapt(dt) {
+    this.ft = this.ft === undefined ? dt : this.ft * 0.92 + dt * 0.08;
+    this.adaptTimer += dt;
+    if (this.adaptTimer < 1.2) return;
+    this.adaptTimer = 0;
+    let s = this.dynScale;
+    if (this.ft > 1 / 48) s = Math.max(0.6, s - 0.1);
+    else if (this.ft < 1 / 57) s = Math.min(1, s + 0.05);
+    if (Math.abs(s - this.dynScale) > 1e-3) {
+      this.dynScale = s;
+      this.resize();
+    }
+  }
+
+  // After loading or a big hitch, don't judge performance on stale frame times.
+  resetAdapt() {
+    this.ft = undefined;
+    this.adaptTimer = -2;
   }
 
   resize() {
@@ -176,11 +200,19 @@ export class Graphics {
       // the car should not reflect itself, and fireballs in a 128px probe just make chrome glow
       const hidden = [...this.hideForProbe];
       this.scene.traverseVisible((o) => {
-        if (o.isPoints || o.isSprite) hidden.push(o);
+        if (o.isPoints || o.isSprite || o.userData.skyDome) hidden.push(o);
       });
+      // Swap the raw sky dome for the balanced sky light so reflections match the lighting.
+      const scene = this.scene;
+      const bg = scene.background;
+      const bgi = scene.backgroundIntensity;
+      scene.background = scene.environment;
+      scene.backgroundIntensity = scene.environmentIntensity;
       for (const o of hidden) o.visible = false;
-      this.probeCamera.update(this.renderer, this.scene);
+      this.probeCamera.update(this.renderer, scene);
       for (const o of hidden) o.visible = true;
+      scene.background = bg;
+      scene.backgroundIntensity = bgi;
     }
     this.composer.render();
   }

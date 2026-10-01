@@ -43,9 +43,39 @@ function run(level) {
   return ok;
 }
 
+// Extra builds that exercise features the hint builds don't: parts riding inside boxes and
+// wheels on forks underneath a frame.
+const EXTRA = [
+  {
+    id: 'meadow',
+    label: 'boxed',
+    cells: [
+      ['wood', 0, 0, 1], ['wood', 1, 0, 1], ['wood', 2, 0, 1],
+      ['pig', 1, 0, 1], ['engine', 2, 0, 1],
+      ['wheel', 0, 0, 0], ['wheel', 0, 0, 2], ['wheel', 2, 0, 0], ['wheel', 2, 0, 2],
+    ],
+  },
+  {
+    id: 'meadow',
+    label: 'forks',
+    cells: [
+      ['wood', 0, 1, 0], ['wood', 0, 1, 2], ['wood', 2, 1, 0], ['wood', 2, 1, 2],
+      ['wood', 0, 1, 1], ['wood', 1, 1, 1], ['wood', 2, 1, 1],
+      ['pig', 1, 1, 1], ['engine', 2, 1, 1],
+      ['wheel', 0, 0, 0], ['wheel', 0, 0, 2], ['wheel', 2, 0, 0], ['wheel', 2, 0, 2],
+    ],
+  },
+];
+
 let failures = 0;
 for (const level of LEVELS) {
   if (only && level.id !== only) continue;
+  if (!run(level)) failures++;
+}
+for (const extra of EXTRA) {
+  if (only && extra.id !== only) continue;
+  const base = LEVELS.find((l) => l.id === extra.id);
+  const level = { ...base, id: `${extra.id}-${extra.label}`, solution: extra.cells, parts: { ...base.parts, wood: 9, engine: 2, wheel: 6 } };
   if (!run(level)) failures++;
 }
 process.exit(failures ? 1 : 0);

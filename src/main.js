@@ -52,7 +52,7 @@ async function boot(hotData = {}) {
   const sound = new Sound();
   const game = new Game({ RAPIER, graphics, sound, store, thumbnails });
   window.pigRig = game; // handy for poking around in the console
-  game.renderThumbnails = (size) => renderThumbnails(PART_ORDER, size);
+  game.renderThumbnails = (size, types = PART_ORDER, cam) => renderThumbnails(types, size, cam);
 
   await game.loadWorld(LEVELS[0], (p, text) => ui.loading(0.3 + p * 0.65, text));
   await game.showTitle();

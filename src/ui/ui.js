@@ -55,6 +55,10 @@ export function bind(g) {
   };
   $('btn-rotate').onclick = () => toast('Thrust: ' + game.world.builder.rotate());
   $('btn-eraser').onclick = () => game.world.builder.setEraser(!game.world.builder.eraser);
+  $('btn-inside').onclick = () => toggleInside(game);
+  $('btn-mirror').onclick = () => toggleMirror(game);
+  $('btn-turn-left').onclick = () => game.world.builder.turn(-1);
+  $('btn-turn-right').onclick = () => game.world.builder.turn(1);
   $('btn-restart').onclick = () => game.restart();
   $('btn-tobuild').onclick = () => game.enterBuild();
   $('btn-cam').onclick = () => toast(game.rig.toggleMode() === 'side' ? 'Side view' : 'Chase view');
@@ -121,6 +125,18 @@ export function bind(g) {
     btn.addEventListener('pointerleave', off);
     btn.addEventListener('pointercancel', off);
   }
+}
+
+export function toggleInside(g) {
+  const b = g.world.builder;
+  b.setInsideMode(!b.insideMode);
+  toast(b.insideMode ? 'Inside boxes on: click a frame to put the part inside it' : 'Inside boxes off');
+}
+
+export function toggleMirror(g) {
+  const b = g.world.builder;
+  b.setMirror(!b.mirror);
+  toast(b.mirror ? 'Mirror on: parts are copied to the other side' : 'Mirror off');
 }
 
 function click() {
@@ -252,6 +268,11 @@ export function refreshBuild(g) {
     el.classList.toggle('empty', left <= 0);
   }
   $('btn-eraser').classList.toggle('on', b.eraser);
+  $('btn-eraser').setAttribute('aria-pressed', String(b.eraser));
+  $('btn-inside').classList.toggle('on', b.insideMode);
+  $('btn-inside').setAttribute('aria-pressed', String(b.insideMode));
+  $('btn-mirror').classList.toggle('on', b.mirror);
+  $('btn-mirror').setAttribute('aria-pressed', String(b.mirror));
   $('rotate-label').textContent = DIRS[b.placeDir].label;
   $('btn-rotate').hidden = !PARTS[b.selected]?.directional;
   $('btn-go').disabled = !b.hasPig();
